@@ -1,0 +1,1718 @@
+{
+  "@@locale": "en",
+  "@@last_modified": "2024-12-14T00:00:00.000Z",
+
+  "appName": "TSL Parivar",
+  "@appName": {
+    "description": "The name of the application"
+  },
+
+  "appTagline": "Heart of Building",
+  "@appTagline": {
+    "description": "The tagline of the application"
+  },
+
+  "heroBannerTitle": "Build Bold. Build Better. Build with TSL.",
+  "@heroBannerTitle": {
+    "description": "Hero banner title text"
+  },
+
+  "languageEnglish": "English",
+  "@languageEnglish": {
+    "description": "English language option"
+  },
+
+  "languageHindi": "हिंदी",
+  "@languageHindi": {
+    "description": "Hindi language option"
+  },
+
+  "commonLoading": "Loading...",
+  "@commonLoading": {
+    "description": "Loading text"
+  },
+
+  "commonError": "Something went wrong",
+  "@commonError": {
+    "description": "Generic error message"
+  },
+
+  "commonRetry": "Retry",
+  "@commonRetry": {
+    "description": "Retry button text"
+  },
+
+  "commonCancel": "Cancel",
+  "@commonCancel": {
+    "description": "Cancel button text"
+  },
+
+  "commonSave": "Save",
+  "@commonSave": {
+    "description": "Save button text"
+  },
+
+  "commonSubmit": "Submit",
+  "@commonSubmit": {
+    "description": "Submit button text"
+  },
+
+  "commonConfirm": "Confirm",
+  "@commonConfirm": {
+    "description": "Confirm button text"
+  },
+
+  "commonDelete": "Delete",
+  "@commonDelete": {
+    "description": "Delete button text"
+  },
+
+  "commonEdit": "Edit",
+  "@commonEdit": {
+    "description": "Edit button text"
+  },
+
+  "commonViewAll": "View All",
+  "@commonViewAll": {
+    "description": "View all link text"
+  },
+
+  "commonView": "View",
+  "@commonView": {
+    "description": "View action text"
+  },
+
+  "commonSearch": "Search",
+  "@commonSearch": {
+    "description": "Search placeholder text"
+  },
+
+  "commonNoResults": "No results found",
+  "@commonNoResults": {
+    "description": "No results message"
+  },
+
+  "commonYes": "Yes",
+  "@commonYes": {
+    "description": "Yes button text"
+  },
+
+  "commonNo": "No",
+  "@commonNo": {
+    "description": "No button text"
+  },
+
+  "commonOk": "OK",
+  "@commonOk": {
+    "description": "OK button text"
+  },
+
+  "commonDone": "Done",
+  "@commonDone": {
+    "description": "Done button text"
+  },
+
+  "commonNext": "Next",
+  "@commonNext": {
+    "description": "Next button text"
+  },
+
+  "commonBack": "Back",
+  "@commonBack": {
+    "description": "Back button text"
+  },
+
+  "commonSkip": "Skip",
+  "@commonSkip": {
+    "description": "Skip button text"
+  },
+
+  "commonContinue": "Continue",
+  "@commonContinue": {
+    "description": "Continue button text"
+  },
+
+  "commonGetStarted": "Get Started",
+  "@commonGetStarted": {
+    "description": "Get started button text"
+  },
+
+  "commonCall": "Call",
+  "@commonCall": {
+    "description": "Call button text"
+  },
+
+  "commonMessage": "Message",
+  "@commonMessage": {
+    "description": "Message button text"
+  },
+
+  "commonNavigate": "Navigate",
+  "@commonNavigate": {
+    "description": "Navigate button text"
+  },
+
+  "statusAssigned": "Assigned",
+  "@statusAssigned": {
+    "description": "Assigned status"
+  },
+
+  "statusInProgress": "In Progress",
+  "@statusInProgress": {
+    "description": "In Progress status"
+  },
+
+  "statusPending": "Pending",
+  "@statusPending": {
+    "description": "Pending status"
+  },
+
+  "statusPendingApproval": "Pending Approval",
+  "@statusPendingApproval": {
+    "description": "Pending Approval status"
+  },
+
+  "statusCompleted": "Completed",
+  "@statusCompleted": {
+    "description": "Completed status"
+  },
+
+  "statusDelivered": "Delivered",
+  "@statusDelivered": {
+    "description": "Delivered status"
+  },
+
+  "statusRejected": "Rejected",
+  "@statusRejected": {
+    "description": "Rejected status"
+  },
+
+  "statusCancelled": "Cancelled",
+  "@statusCancelled": {
+    "description": "Cancelled status"
+  },
+
+  "onboardingTitle1": "Welcome to TSL Parivar",
+  "@onboardingTitle1": {
+    "description": "Onboarding screen 1 title"
+  },
+
+  "onboardingDesc1": "Join the TSL family and be part of India's trusted construction material network.",
+  "@onboardingDesc1": {
+    "description": "Onboarding screen 1 description"
+  },
+
+  "onboardingTitle2": "Track & Deliver",
+  "@onboardingTitle2": {
+    "description": "Onboarding screen 2 title"
+  },
+
+  "onboardingDesc2": "Manage deliveries, track orders, and earn rewards for every successful delivery.",
+  "@onboardingDesc2": {
+    "description": "Onboarding screen 2 description"
+  },
+
+  "onboardingTitle3": "Grow Together",
+  "@onboardingTitle3": {
+    "description": "Onboarding screen 3 title"
+  },
+
+  "onboardingDesc3": "Build your career with TSL. More deliveries, more rewards, better future.",
+  "@onboardingDesc3": {
+    "description": "Onboarding screen 3 description"
+  },
+
+  "roleSelectionTitle": "Select Your Role",
+  "@roleSelectionTitle": {
+    "description": "Role selection screen title"
+  },
+
+  "roleSelectionSubtitle": "Choose how you want to use TSL Parivar",
+  "@roleSelectionSubtitle": {
+    "description": "Role selection screen subtitle"
+  },
+
+  "roleMistri": "Mistri",
+  "@roleMistri": {
+    "description": "Mistri role name"
+  },
+
+  "roleMistriDesc": "Field worker delivering materials",
+  "@roleMistriDesc": {
+    "description": "Mistri role description"
+  },
+
+  "roleDealer": "Dealer",
+  "@roleDealer": {
+    "description": "Dealer role name"
+  },
+
+  "roleDealerDesc": "Distributor managing orders & mistris",
+  "@roleDealerDesc": {
+    "description": "Dealer role description"
+  },
+
+  "roleArchitect": "Architect",
+  "@roleArchitect": {
+    "description": "Architect role name"
+  },
+
+  "roleArchitectDesc": "Engineer specifying materials for projects",
+  "@roleArchitectDesc": {
+    "description": "Architect role description"
+  },
+
+  "roleSelectionFooter": "Select your role to continue",
+  "@roleSelectionFooter": {
+    "description": "Role selection footer helper text"
+  },
+
+  "loginTitle": "Login",
+  "@loginTitle": {
+    "description": "Login screen title"
+  },
+
+  "loginSubtitle": "Enter your phone number to continue",
+  "@loginSubtitle": {
+    "description": "Login screen subtitle"
+  },
+
+  "loginPhoneLabel": "Phone Number",
+  "@loginPhoneLabel": {
+    "description": "Phone number input label"
+  },
+
+  "loginPhoneHint": "Enter 10-digit mobile number",
+  "@loginPhoneHint": {
+    "description": "Phone number input hint"
+  },
+
+  "loginSendOtp": "Send OTP",
+  "@loginSendOtp": {
+    "description": "Send OTP button text"
+  },
+
+  "loginPhoneError": "Please enter a valid 10-digit phone number",
+  "@loginPhoneError": {
+    "description": "Phone validation error"
+  },
+
+  "loginPhoneRequired": "Please enter your phone number",
+  "@loginPhoneRequired": {
+    "description": "Phone number required error"
+  },
+
+  "loginSendOtpFailed": "Failed to send OTP. Please try again.",
+  "@loginSendOtpFailed": {
+    "description": "Fallback message when OTP send fails"
+  },
+
+  "loginIndiaOnly": "Currently available in India only",
+  "@loginIndiaOnly": {
+    "description": "Country code picker informational message"
+  },
+
+  "otpTitle": "Verify OTP",
+  "@otpTitle": {
+    "description": "OTP screen title"
+  },
+
+  "otpSubtitle": "Enter the 6-digit code sent to {phoneNumber}",
+  "@otpSubtitle": {
+    "description": "OTP screen subtitle",
+    "placeholders": {
+      "phoneNumber": {
+        "type": "String",
+        "example": "+91 98765 43210"
+      }
+    }
+  },
+
+  "otpVerify": "Verify",
+  "@otpVerify": {
+    "description": "Verify OTP button text"
+  },
+
+  "otpResend": "Resend OTP",
+  "@otpResend": {
+    "description": "Resend OTP button text"
+  },
+
+  "otpResendIn": "Resend OTP in {seconds}s",
+  "@otpResendIn": {
+    "description": "Resend OTP countdown text",
+    "placeholders": {
+      "seconds": {
+        "type": "int",
+        "example": "30"
+      }
+    }
+  },
+
+  "otpError": "Invalid OTP. Please try again.",
+  "@otpError": {
+    "description": "OTP validation error"
+  },
+
+  "navHome": "Home",
+  "@navHome": {
+    "description": "Home navigation label"
+  },
+
+  "navDeliveries": "Deliveries",
+  "@navDeliveries": {
+    "description": "Deliveries navigation label"
+  },
+
+  "navRewards": "Rewards",
+  "@navRewards": {
+    "description": "Rewards navigation label"
+  },
+
+  "navProfile": "Profile",
+  "@navProfile": {
+    "description": "Profile navigation label"
+  },
+
+  "navOrders": "Orders",
+  "@navOrders": {
+    "description": "Orders navigation label"
+  },
+
+  "navMistris": "Mistris",
+  "@navMistris": {
+    "description": "Mistris navigation label"
+  },
+
+  "navProjects": "Projects",
+  "@navProjects": {
+    "description": "Projects navigation label"
+  },
+
+  "greetingMorning": "Good Morning",
+  "@greetingMorning": {
+    "description": "Morning greeting (before 12 PM)"
+  },
+
+  "greetingAfternoon": "Good Afternoon",
+  "@greetingAfternoon": {
+    "description": "Afternoon greeting (12 PM - 5 PM)"
+  },
+
+  "greetingEvening": "Good Evening",
+  "@greetingEvening": {
+    "description": "Evening greeting (after 5 PM)"
+  },
+
+  "mistriHomeGreeting": "Hello, {name}!",
+  "@mistriHomeGreeting": {
+    "description": "Greeting message on Mistri home",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Ramesh"
+      }
+    }
+  },
+
+  "mistriHomeRewardPoints": "{points} Points",
+  "@mistriHomeRewardPoints": {
+    "description": "Reward points display",
+    "placeholders": {
+      "points": {
+        "type": "int",
+        "example": "1250"
+      }
+    }
+  },
+
+  "mistriHomeApprovedPoints": "Approved",
+  "@mistriHomeApprovedPoints": {
+    "description": "Approved points label"
+  },
+
+  "mistriHomePendingPoints": "Pending",
+  "@mistriHomePendingPoints": {
+    "description": "Pending points label"
+  },
+
+  "mistriHomeAssignedDealer": "Your Assigned Dealer",
+  "@mistriHomeAssignedDealer": {
+    "description": "Assigned dealer section title"
+  },
+
+  "mistriHomeActiveDeliveries": "Active Deliveries",
+  "@mistriHomeActiveDeliveries": {
+    "description": "Active deliveries section title"
+  },
+
+  "mistriHomeNoDeliveries": "No active deliveries",
+  "@mistriHomeNoDeliveries": {
+    "description": "No deliveries message"
+  },
+
+  "mistriHomeRequestOrder": "Request New Order",
+  "@mistriHomeRequestOrder": {
+    "description": "Request order button text"
+  },
+
+  "mistriHomeHelp": "Help / Building Guide",
+  "@mistriHomeHelp": {
+    "description": "Help button text"
+  },
+
+  "deliveryExpectedDate": "Expected: {date}",
+  "@deliveryExpectedDate": {
+    "description": "Expected delivery date",
+    "placeholders": {
+      "date": {
+        "type": "String",
+        "example": "Dec 15, 2024"
+      }
+    }
+  },
+
+  "deliveryDistance": "{distance} km away",
+  "@deliveryDistance": {
+    "description": "Distance to delivery location",
+    "placeholders": {
+      "distance": {
+        "type": "String",
+        "example": "5.2"
+      }
+    }
+  },
+
+  "deliveryViewDetails": "View Details",
+  "@deliveryViewDetails": {
+    "description": "View details button text"
+  },
+
+  "deliveryMarkReached": "Mark Reached",
+  "@deliveryMarkReached": {
+    "description": "Mark reached button text"
+  },
+
+  "deliverySubmitProof": "Submit Proof",
+  "@deliverySubmitProof": {
+    "description": "Submit proof button text"
+  },
+
+  "deliveryMessageDealer": "Message Dealer",
+  "@deliveryMessageDealer": {
+    "description": "Message dealer button text"
+  },
+
+  "podTitle": "Proof of Delivery",
+  "@podTitle": {
+    "description": "POD screen title"
+  },
+
+  "podDeliverySummary": "Delivery Summary",
+  "@podDeliverySummary": {
+    "description": "Delivery summary section title"
+  },
+
+  "podLocationVerification": "Location Verification",
+  "@podLocationVerification": {
+    "description": "Location verification section title"
+  },
+
+  "podLocationVerified": "Location verified",
+  "@podLocationVerified": {
+    "description": "Location verified status"
+  },
+
+  "podLocationWarning": "You are {distance}m from delivery location",
+  "@podLocationWarning": {
+    "description": "Location warning message",
+    "placeholders": {
+      "distance": {
+        "type": "int",
+        "example": "150"
+      }
+    }
+  },
+
+  "podPhotos": "Photos (min. 2 required)",
+  "@podPhotos": {
+    "description": "Photos section title"
+  },
+
+  "podAddPhoto": "Add Photo",
+  "@podAddPhoto": {
+    "description": "Add photo button text"
+  },
+
+  "podQuantityAssigned": "Assigned Quantity",
+  "@podQuantityAssigned": {
+    "description": "Assigned quantity label"
+  },
+
+  "podQuantityDelivered": "Delivered Quantity",
+  "@podQuantityDelivered": {
+    "description": "Delivered quantity label"
+  },
+
+  "podIssues": "Report Issues (if any)",
+  "@podIssues": {
+    "description": "Issues section title"
+  },
+
+  "podNotes": "Additional Notes",
+  "@podNotes": {
+    "description": "Notes section title"
+  },
+
+  "podSubmitDelivery": "Submit Delivery Proof",
+  "@podSubmitDelivery": {
+    "description": "Submit button text"
+  },
+
+  "rewardsTitle": "Rewards",
+  "@rewardsTitle": {
+    "description": "Rewards screen title"
+  },
+
+  "rewardsBalance": "Reward Balance",
+  "@rewardsBalance": {
+    "description": "Reward balance section title"
+  },
+
+  "rewardsRank": "Your Rank",
+  "@rewardsRank": {
+    "description": "Rank section title"
+  },
+
+  "rewardsTrustedMistri": "TSL Trusted Mistri",
+  "@rewardsTrustedMistri": {
+    "description": "Trusted mistri badge"
+  },
+
+  "rewardsTabEarned": "Earned",
+  "@rewardsTabEarned": {
+    "description": "Earned tab label"
+  },
+
+  "rewardsTabRedeemed": "Redeemed",
+  "@rewardsTabRedeemed": {
+    "description": "Redeemed tab label"
+  },
+
+  "rewardsTabPending": "Pending",
+  "@rewardsTabPending": {
+    "description": "Pending tab label"
+  },
+
+  "rewardsRedeem": "Redeem Points",
+  "@rewardsRedeem": {
+    "description": "Redeem button text"
+  },
+
+  "rewardsNoTransactions": "No reward transactions yet",
+  "@rewardsNoTransactions": {
+    "description": "No transactions message"
+  },
+
+  "requestOrderTitle": "Request New Order",
+  "@requestOrderTitle": {
+    "description": "Request order screen title"
+  },
+
+  "requestOrderMaterial": "Material Type",
+  "@requestOrderMaterial": {
+    "description": "Material type field label"
+  },
+
+  "requestOrderQuantity": "Quantity",
+  "@requestOrderQuantity": {
+    "description": "Quantity field label"
+  },
+
+  "requestOrderUnit": "Unit",
+  "@requestOrderUnit": {
+    "description": "Unit field label"
+  },
+
+  "requestOrderLocation": "Delivery Location",
+  "@requestOrderLocation": {
+    "description": "Location field label"
+  },
+
+  "requestOrderDate": "Expected Delivery Date",
+  "@requestOrderDate": {
+    "description": "Date field label"
+  },
+
+  "requestOrderUrgency": "Urgency",
+  "@requestOrderUrgency": {
+    "description": "Urgency field label"
+  },
+
+  "requestOrderUrgencyNormal": "Normal",
+  "@requestOrderUrgencyNormal": {
+    "description": "Normal urgency option"
+  },
+
+  "requestOrderUrgencyUrgent": "Urgent",
+  "@requestOrderUrgencyUrgent": {
+    "description": "Urgent urgency option"
+  },
+
+  "requestOrderUrgencyAsap": "ASAP",
+  "@requestOrderUrgencyAsap": {
+    "description": "ASAP urgency option"
+  },
+
+  "requestOrderCustomerName": "Customer Name",
+  "@requestOrderCustomerName": {
+    "description": "Customer name field label"
+  },
+
+  "requestOrderCustomerPhone": "Customer Phone",
+  "@requestOrderCustomerPhone": {
+    "description": "Customer phone field label"
+  },
+
+  "requestOrderNotes": "Additional Notes",
+  "@requestOrderNotes": {
+    "description": "Notes field label"
+  },
+
+  "requestOrderSubmit": "Submit Request",
+  "@requestOrderSubmit": {
+    "description": "Submit button text"
+  },
+
+  "dealerHomeKpiMistris": "Total Mistris",
+  "@dealerHomeKpiMistris": {
+    "description": "KPI label for mistris count"
+  },
+
+  "dealerHomeKpiDeliveries": "Active Deliveries",
+  "@dealerHomeKpiDeliveries": {
+    "description": "KPI label for active deliveries"
+  },
+
+  "dealerHomeKpiPending": "Pending Approvals",
+  "@dealerHomeKpiPending": {
+    "description": "KPI label for pending approvals"
+  },
+
+  "dealerHomeKpiVolume": "Weekly Volume",
+  "@dealerHomeKpiVolume": {
+    "description": "KPI label for weekly volume"
+  },
+
+  "dealerHomeLoyaltyPoints": "Loyalty Points",
+  "@dealerHomeLoyaltyPoints": {
+    "description": "Loyalty points label"
+  },
+
+  "dealerHomeMistriPool": "Mistri Pool",
+  "@dealerHomeMistriPool": {
+    "description": "Mistri pool label"
+  },
+
+  "dealerHomeTopMistri": "Top Performing Mistri",
+  "@dealerHomeTopMistri": {
+    "description": "Top mistri section title"
+  },
+
+  "dealerHomeAddMistri": "Add Mistri",
+  "@dealerHomeAddMistri": {
+    "description": "Add mistri button text"
+  },
+
+  "dealerHomeAssignDelivery": "Assign Delivery",
+  "@dealerHomeAssignDelivery": {
+    "description": "Assign delivery button text"
+  },
+
+  "mistriMgmtTitle": "Mistri Management",
+  "@mistriMgmtTitle": {
+    "description": "Mistri management screen title"
+  },
+
+  "mistriMgmtAddNew": "Add New Mistri",
+  "@mistriMgmtAddNew": {
+    "description": "Add new mistri button"
+  },
+
+  "mistriMgmtFilterActive": "Active",
+  "@mistriMgmtFilterActive": {
+    "description": "Active filter option"
+  },
+
+  "mistriMgmtFilterInactive": "Inactive",
+  "@mistriMgmtFilterInactive": {
+    "description": "Inactive filter option"
+  },
+
+  "mistriMgmtDeliveries": "{count} deliveries",
+  "@mistriMgmtDeliveries": {
+    "description": "Delivery count",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "25"
+      }
+    }
+  },
+
+  "mistriMgmtSuccessRate": "{rate}% success",
+  "@mistriMgmtSuccessRate": {
+    "description": "Success rate",
+    "placeholders": {
+      "rate": {
+        "type": "int",
+        "example": "95"
+      }
+    }
+  },
+
+  "mistriMgmtAssign": "Assign",
+  "@mistriMgmtAssign": {
+    "description": "Assign button text"
+  },
+
+  "orderRequestsTitle": "Order Requests",
+  "@orderRequestsTitle": {
+    "description": "Order requests screen title"
+  },
+
+  "orderRequestsTabNew": "New",
+  "@orderRequestsTabNew": {
+    "description": "New requests tab"
+  },
+
+  "orderRequestsTabAll": "All",
+  "@orderRequestsTabAll": {
+    "description": "All requests tab"
+  },
+
+  "orderRequestsTabHistory": "History",
+  "@orderRequestsTabHistory": {
+    "description": "History tab"
+  },
+
+  "orderRequestsApprove": "Approve",
+  "@orderRequestsApprove": {
+    "description": "Approve button"
+  },
+
+  "orderRequestsReject": "Reject",
+  "@orderRequestsReject": {
+    "description": "Reject button"
+  },
+
+  "orderRequestsRequestInfo": "Request Info",
+  "@orderRequestsRequestInfo": {
+    "description": "Request info button"
+  },
+
+  "orderRequestsRejectReason": "Rejection Reason",
+  "@orderRequestsRejectReason": {
+    "description": "Rejection reason title"
+  },
+
+  "orderRequestsNoRequests": "No order requests",
+  "@orderRequestsNoRequests": {
+    "description": "No requests message"
+  },
+
+  "pendingApprovalsTitle": "Pending Approvals",
+  "@pendingApprovalsTitle": {
+    "description": "Pending approvals screen title"
+  },
+
+  "pendingApprovalsPhotoGallery": "Photo Gallery",
+  "@pendingApprovalsPhotoGallery": {
+    "description": "Photo gallery section"
+  },
+
+  "pendingApprovalsMapView": "Map View",
+  "@pendingApprovalsMapView": {
+    "description": "Map view section"
+  },
+
+  "pendingApprovalsAssignedLocation": "Assigned Location",
+  "@pendingApprovalsAssignedLocation": {
+    "description": "Assigned location label"
+  },
+
+  "pendingApprovalsSubmittedLocation": "Submitted Location",
+  "@pendingApprovalsSubmittedLocation": {
+    "description": "Submitted location label"
+  },
+
+  "pendingApprovalsDistance": "Distance: {distance}m",
+  "@pendingApprovalsDistance": {
+    "description": "Distance label",
+    "placeholders": {
+      "distance": {
+        "type": "int",
+        "example": "50"
+      }
+    }
+  },
+
+  "pendingApprovalsMistriNotes": "Mistri Notes",
+  "@pendingApprovalsMistriNotes": {
+    "description": "Mistri notes section"
+  },
+
+  "pendingApprovalsIssuesReported": "Issues Reported",
+  "@pendingApprovalsIssuesReported": {
+    "description": "Issues reported section"
+  },
+
+  "pendingApprovalsRewardCalc": "Reward Calculation",
+  "@pendingApprovalsRewardCalc": {
+    "description": "Reward calculation section"
+  },
+
+  "pendingApprovalsBasePoints": "Base Points",
+  "@pendingApprovalsBasePoints": {
+    "description": "Base points label"
+  },
+
+  "pendingApprovalsBonusPoints": "Bonus Points",
+  "@pendingApprovalsBonusPoints": {
+    "description": "Bonus points label"
+  },
+
+  "pendingApprovalsTotalPoints": "Total Points",
+  "@pendingApprovalsTotalPoints": {
+    "description": "Total points label"
+  },
+
+  "pendingApprovalsApprove": "Approve",
+  "@pendingApprovalsApprove": {
+    "description": "Approve button"
+  },
+
+  "pendingApprovalsNoApprovals": "No pending approvals",
+  "@pendingApprovalsNoApprovals": {
+    "description": "No approvals message"
+  },
+
+  "architectHomeProjects": "Active Projects",
+  "@architectHomeProjects": {
+    "description": "Active projects KPI"
+  },
+
+  "architectHomeSpecs": "Specifications",
+  "@architectHomeSpecs": {
+    "description": "Specifications KPI"
+  },
+
+  "architectHomeConnectedDealers": "Connected Dealers",
+  "@architectHomeConnectedDealers": {
+    "description": "Connected dealers section"
+  },
+
+  "architectHomeRecentSpecs": "Recent Specifications",
+  "@architectHomeRecentSpecs": {
+    "description": "Recent specs section"
+  },
+
+  "architectHomeCreateSpec": "Create Specification",
+  "@architectHomeCreateSpec": {
+    "description": "Create spec button"
+  },
+
+  "architectHomeNewProject": "New Project",
+  "@architectHomeNewProject": {
+    "description": "New project button"
+  },
+
+  "createSpecTitle": "Create Specification",
+  "@createSpecTitle": {
+    "description": "Create spec screen title"
+  },
+
+  "createSpecProjectName": "Project Name",
+  "@createSpecProjectName": {
+    "description": "Project name field"
+  },
+
+  "createSpecProjectType": "Project Type",
+  "@createSpecProjectType": {
+    "description": "Project type field"
+  },
+
+  "createSpecTypeHousing": "Housing",
+  "@createSpecTypeHousing": {
+    "description": "Housing project type"
+  },
+
+  "createSpecTypeCommercial": "Commercial",
+  "@createSpecTypeCommercial": {
+    "description": "Commercial project type"
+  },
+
+  "createSpecTypeIndustrial": "Industrial",
+  "@createSpecTypeIndustrial": {
+    "description": "Industrial project type"
+  },
+
+  "createSpecTypeRailways": "Railways",
+  "@createSpecTypeRailways": {
+    "description": "Railways project type"
+  },
+
+  "createSpecMaterial": "Material",
+  "@createSpecMaterial": {
+    "description": "Material field"
+  },
+
+  "createSpecGrade": "Grade",
+  "@createSpecGrade": {
+    "description": "Grade field"
+  },
+
+  "createSpecDealers": "Associated Dealers",
+  "@createSpecDealers": {
+    "description": "Dealers field"
+  },
+
+  "createSpecLocation": "Project Location",
+  "@createSpecLocation": {
+    "description": "Location field"
+  },
+
+  "createSpecTimeline": "Expected Timeline",
+  "@createSpecTimeline": {
+    "description": "Timeline field"
+  },
+
+  "createSpecCreate": "Create Specification",
+  "@createSpecCreate": {
+    "description": "Create button"
+  },
+
+  "createSpecSaveDraft": "Save as Draft",
+  "@createSpecSaveDraft": {
+    "description": "Save draft button"
+  },
+
+  "projectsTitle": "Projects",
+  "@projectsTitle": {
+    "description": "Projects screen title"
+  },
+
+  "projectsNoProjects": "No projects yet",
+  "@projectsNoProjects": {
+    "description": "No projects message"
+  },
+
+  "notificationsTitle": "Notifications",
+  "@notificationsTitle": {
+    "description": "Notifications screen title"
+  },
+
+  "notificationsFilterAll": "All",
+  "@notificationsFilterAll": {
+    "description": "All filter"
+  },
+
+  "notificationsFilterDelivery": "Delivery",
+  "@notificationsFilterDelivery": {
+    "description": "Delivery filter"
+  },
+
+  "notificationsFilterReward": "Reward",
+  "@notificationsFilterReward": {
+    "description": "Reward filter"
+  },
+
+  "notificationsFilterOrder": "Order",
+  "@notificationsFilterOrder": {
+    "description": "Order filter"
+  },
+
+  "notificationsFilterSystem": "System",
+  "@notificationsFilterSystem": {
+    "description": "System filter"
+  },
+
+  "notificationsMarkRead": "Mark as read",
+  "@notificationsMarkRead": {
+    "description": "Mark as read option"
+  },
+
+  "notificationsMarkUnread": "Mark as unread",
+  "@notificationsMarkUnread": {
+    "description": "Mark as unread option"
+  },
+
+  "notificationsNoNotifications": "No notifications",
+  "@notificationsNoNotifications": {
+    "description": "No notifications message"
+  },
+
+  "notificationsFilterByType": "Filter by type",
+  "notificationsNoFiltered": "No {type} notifications",
+  "@notificationsNoFiltered": {
+    "description": "No notifications for selected filter",
+    "placeholders": {
+      "type": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationsAllCaughtUp": "You're all caught up!",
+  "notificationsMarkAllRead": "Mark all read",
+  "notificationsSelectedCount": "{count} selected",
+  "@notificationsSelectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "notificationsUnreadCount": "{count} unread",
+  "@notificationsUnreadCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "notificationsTotalCount": "{count} total",
+  "@notificationsTotalCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "notificationsDeleteTitle": "Delete Notifications",
+  "notificationsDeleteConfirm": "Delete {count} selected notifications?",
+  "@notificationsDeleteConfirm": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "notificationsRead": "Read",
+  "notificationsJustNow": "Just now",
+  "notificationsOpen": "Open",
+  "notificationsSettings": "Notification Settings",
+  "notificationsTypes": "Notification Types",
+  "notificationsDeliveryUpdates": "Delivery Updates",
+  "notificationsRewardsPoints": "Rewards & Points",
+  "notificationsSystemAlerts": "System Alerts",
+  "notificationsSoundVibration": "Sound & Vibration",
+  "notificationsSound": "Sound",
+  "notificationsVibration": "Vibration",
+  "notificationsSettingsSaved": "Settings saved",
+
+  "profileTitle": "Profile",
+  "@profileTitle": {
+    "description": "Profile screen title"
+  },
+
+  "profileEditProfile": "Edit Profile",
+  "@profileEditProfile": {
+    "description": "Edit profile button"
+  },
+
+  "profileSettings": "Settings",
+  "@profileSettings": {
+    "description": "Settings section"
+  },
+
+  "profileLanguage": "Language",
+  "@profileLanguage": {
+    "description": "Language setting"
+  },
+
+  "profileNotifications": "Notifications",
+  "@profileNotifications": {
+    "description": "Notifications setting"
+  },
+
+  "profilePrivacy": "Privacy",
+  "@profilePrivacy": {
+    "description": "Privacy setting"
+  },
+
+  "profileLogout": "Logout",
+  "@profileLogout": {
+    "description": "Logout button"
+  },
+
+  "profileLogoutConfirm": "Are you sure you want to logout?",
+  "@profileLogoutConfirm": {
+    "description": "Logout confirmation"
+  },
+
+  "profileVersion": "Version {version}",
+  "@profileVersion": {
+    "description": "Version display",
+    "placeholders": {
+      "version": {
+        "type": "String",
+        "example": "1.0.0"
+      }
+    }
+  },
+
+  "materialTsl550sd": "TSL 550 SD",
+  "@materialTsl550sd": {
+    "description": "TSL 550 SD material"
+  },
+
+  "materialGirders": "Girders",
+  "@materialGirders": {
+    "description": "Girders material"
+  },
+
+  "materialAngles": "Angles",
+  "@materialAngles": {
+    "description": "Angles material"
+  },
+
+  "materialChannels": "Channels",
+  "@materialChannels": {
+    "description": "Channels material"
+  },
+
+  "materialPipes": "Pipes",
+  "@materialPipes": {
+    "description": "Pipes material"
+  },
+
+  "materialWires": "Wires",
+  "@materialWires": {
+    "description": "Wires material"
+  },
+
+  "materialColourSheets": "Colour Sheets",
+  "@materialColourSheets": {
+    "description": "Colour Sheets material"
+  },
+
+  "unitTons": "Tons",
+  "@unitTons": {
+    "description": "Tons unit"
+  },
+
+  "unitKg": "Kg",
+  "@unitKg": {
+    "description": "Kg unit"
+  },
+
+  "unitPieces": "Pieces",
+  "@unitPieces": {
+    "description": "Pieces unit"
+  },
+
+  "unitBundles": "Bundles",
+  "@unitBundles": {
+    "description": "Bundles unit"
+  },
+
+  "emptyStateTitle": "Nothing here yet",
+  "@emptyStateTitle": {
+    "description": "Empty state title"
+  },
+
+  "emptyStateMessage": "Check back later for updates",
+  "@emptyStateMessage": {
+    "description": "Empty state message"
+  },
+
+  "errorNetworkTitle": "No Internet Connection",
+  "@errorNetworkTitle": {
+    "description": "Network error title"
+  },
+
+  "errorNetworkMessage": "Please check your internet connection and try again",
+  "@errorNetworkMessage": {
+    "description": "Network error message"
+  },
+
+  "errorServerTitle": "Server Error",
+  "@errorServerTitle": {
+    "description": "Server error title"
+  },
+
+  "errorServerMessage": "Something went wrong on our end. Please try again later.",
+  "@errorServerMessage": {
+    "description": "Server error message"
+  },
+
+  "errorUnknownTitle": "Oops!",
+  "@errorUnknownTitle": {
+    "description": "Unknown error title"
+  },
+
+  "errorUnknownMessage": "Something unexpected happened. Please try again.",
+  "@errorUnknownMessage": {
+    "description": "Unknown error message"
+  },
+
+  "appVersion": "Version {version}",
+  "@appVersion": {
+    "description": "App version display",
+    "placeholders": {
+      "version": {"type": "String"}
+    }
+  },
+
+  "selectLanguage": "Select Language",
+  "@selectLanguage": { "description": "Select language prompt" },
+
+  "callDealer": "Call Dealer",
+  "@callDealer": { "description": "Call dealer dialog title" },
+
+  "callConfirm": "Call {phone}?",
+  "@callConfirm": {
+    "description": "Call confirmation message",
+    "placeholders": { "phone": {"type": "String"} }
+  },
+
+  "navigateToDealer": "Navigate to Dealer",
+  "@navigateToDealer": { "description": "Navigate dialog title" },
+
+  "navigateConfirm": "Open maps to navigate to:\n{address}",
+  "@navigateConfirm": {
+    "description": "Navigate confirmation",
+    "placeholders": { "address": {"type": "String"} }
+  },
+
+  "deliveriesTitle": "Deliveries",
+  "@deliveriesTitle": { "description": "Deliveries screen title" },
+
+  "searchDeliveries": "Search deliveries...",
+  "@searchDeliveries": { "description": "Search deliveries placeholder" },
+
+  "searchProjects": "Search projects...",
+  "@searchProjects": { "description": "Search projects placeholder" },
+
+  "searchMistris": "Search mistris...",
+  "@searchMistris": { "description": "Search mistris placeholder" },
+
+  "noDeliveriesFound": "No Deliveries Found",
+  "@noDeliveriesFound": { "description": "No deliveries empty state" },
+
+  "deliveryDetails": "Delivery Details",
+  "@deliveryDetails": { "description": "Delivery details title" },
+
+  "customerDetails": "Customer Details",
+  "@customerDetails": { "description": "Customer details section" },
+
+  "deliveryProgress": "Delivery Progress",
+  "@deliveryProgress": { "description": "Delivery progress section" },
+
+  "productDetails": "Product Details",
+  "@productDetails": { "description": "Product details section" },
+
+  "statusAll": "All",
+  "@statusAll": { "description": "All status filter" },
+
+  "statusNew": "New",
+  "@statusNew": { "description": "New status" },
+
+  "statusActive": "Active",
+  "@statusActive": { "description": "Active status" },
+
+  "statusOnHold": "On Hold",
+  "@statusOnHold": { "description": "On hold status" },
+
+  "statusDraft": "Draft",
+  "@statusDraft": { "description": "Draft status" },
+
+  "statusInactive": "Inactive",
+  "@statusInactive": { "description": "Inactive status" },
+
+  "tabHistory": "History",
+  "@tabHistory": { "description": "History tab label" },
+
+  "noProjectsFound": "No Projects Found",
+  "@noProjectsFound": { "description": "No projects empty state" },
+
+  "createProject": "Create Project",
+  "@createProject": { "description": "Create project button" },
+
+  "newProject": "New Project",
+  "@newProject": { "description": "New project button" },
+
+  "clearSearch": "Clear Search",
+  "@clearSearch": { "description": "Clear search button" },
+
+  "myProjects": "My Projects",
+  "@myProjects": { "description": "My projects title" },
+
+  "location": "Location",
+  "@location": { "description": "Location label" },
+
+  "materialSpecifications": "Material Specifications",
+  "@materialSpecifications": { "description": "Material specifications section" },
+
+  "noSpecificationsYet": "No specifications yet",
+  "@noSpecificationsYet": { "description": "No specifications message" },
+
+  "associatedDealers": "Associated Dealers",
+  "@associatedDealers": { "description": "Associated dealers section" },
+
+  "noDealersAssociated": "No dealers associated",
+  "@noDealersAssociated": { "description": "No dealers message" },
+
+  "pointsEarned": "Points Earned",
+  "@pointsEarned": { "description": "Points earned label" },
+
+  "addSpec": "Add Spec",
+  "@addSpec": { "description": "Add specification button" },
+
+  "notificationsEmpty": "No notifications yet",
+  "@notificationsEmpty": { "description": "Empty notifications" },
+
+  "today": "Today",
+  "@today": { "description": "Today label" },
+
+  "yesterday": "Yesterday",
+  "@yesterday": { "description": "Yesterday label" },
+
+  "thisWeek": "This Week",
+  "@thisWeek": { "description": "This week label" },
+
+  "earlier": "Earlier",
+  "@earlier": { "description": "Earlier label" },
+
+  "chatTitle": "Messages",
+  "@chatTitle": { "description": "Chat/messaging title" },
+
+  "chatSearchConversations": "Search conversations...",
+  "@chatSearchConversations": { "description": "Conversation search placeholder" },
+
+  "chatNoConversations": "No Conversations",
+  "@chatNoConversations": { "description": "No conversations empty title" },
+
+  "chatNewCount": "{count} new",
+  "@chatNewCount": {
+    "description": "Unread chats count",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+
+  "chatConversationCount": "{count} conversations",
+  "@chatConversationCount": {
+    "description": "Total chat conversations count",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+
+  "newConversation": "New Conversation",
+  "@newConversation": { "description": "New conversation button" },
+
+  "typeMessage": "Type a message...",
+  "@typeMessage": { "description": "Type message placeholder" },
+
+  "online": "Online",
+  "@online": { "description": "Online status" },
+
+  "offline": "Offline",
+  "@offline": { "description": "Offline status" },
+
+  "noMessages": "No Messages Yet",
+  "@noMessages": { "description": "No messages empty state" },
+
+  "startConversation": "Start a conversation",
+  "@startConversation": { "description": "Start conversation prompt" },
+
+  "editProfile": "Edit Profile",
+  "@editProfile": { "description": "Edit profile title" },
+
+  "profileNotSet": "Not set",
+  "@profileNotSet": { "description": "Fallback when profile field is unset" },
+
+  "profileMemberSince": "Member Since",
+  "@profileMemberSince": { "description": "Member since label" },
+
+  "profileUnknown": "Unknown",
+  "@profileUnknown": { "description": "Unknown fallback label" },
+
+  "profileSuccess": "Success",
+  "@profileSuccess": { "description": "Success stat label" },
+
+  "profileVolume": "Volume",
+  "@profileVolume": { "description": "Volume stat label" },
+
+  "profileIdCard": "ID Card",
+  "@profileIdCard": { "description": "ID card quick action title" },
+
+  "profileViewTslId": "View your TSL ID",
+  "@profileViewTslId": { "description": "ID card quick action subtitle" },
+
+  "profileActivity": "Activity",
+  "@profileActivity": { "description": "Activity quick action title" },
+
+  "profileEnabled": "Enabled",
+  "@profileEnabled": { "description": "Enabled value" },
+
+  "profileDisabled": "Disabled",
+  "@profileDisabled": { "description": "Disabled value" },
+
+  "profileOn": "On",
+  "@profileOn": { "description": "On value" },
+
+  "profileOff": "Off",
+  "@profileOff": { "description": "Off value" },
+
+  "profileContactSupport": "Contact Support",
+  "@profileContactSupport": { "description": "Profile support contact row" },
+
+  "profileRateApp": "Rate the App",
+  "@profileRateApp": { "description": "Rate app row" },
+
+  "profileShareApp": "Share App",
+  "@profileShareApp": { "description": "Share app row" },
+
+  "profileBuildVersion": "Version 1.0.0 (Build 1)",
+  "@profileBuildVersion": { "description": "Profile version text" },
+
+  "profileCopyright": "© 2024 TSL Steel. All rights reserved.",
+  "@profileCopyright": { "description": "Profile copyright text" },
+
+  "profileYourQrCode": "Your TSL QR Code",
+  "@profileYourQrCode": { "description": "QR dialog title" },
+
+  "profileIdPrefix": "ID",
+  "@profileIdPrefix": { "description": "ID field prefix" },
+
+  "profileShareQrCode": "Share QR Code",
+  "@profileShareQrCode": { "description": "Share QR code button" },
+
+  "profileShareIdCard": "Share ID Card",
+  "@profileShareIdCard": { "description": "Share ID card button" },
+
+  "profileFullName": "Full Name",
+  "@profileFullName": { "description": "Full name field label" },
+
+  "profileCity": "City",
+  "@profileCity": { "description": "City field label" },
+
+  "profileFullAddress": "Full Address",
+  "@profileFullAddress": { "description": "Full address field label" },
+
+  "profileSaveChanges": "Save Changes",
+  "@profileSaveChanges": { "description": "Save profile changes button" },
+
+  "settings": "Settings",
+  "@settings": { "description": "Settings title" },
+
+  "darkMode": "Dark Mode",
+  "@darkMode": { "description": "Dark mode toggle" },
+
+  "biometricAuth": "Biometric Authentication",
+  "@biometricAuth": { "description": "Biometric auth toggle" },
+
+  "termsOfService": "Terms of Service",
+  "@termsOfService": { "description": "Terms of service" },
+
+  "privacyPolicy": "Privacy Policy",
+  "@privacyPolicy": { "description": "Privacy policy" },
+
+  "aboutApp": "About TSL Parivar",
+  "@aboutApp": { "description": "About app" },
+
+  "logoutConfirmTitle": "Logout",
+  "@logoutConfirmTitle": { "description": "Logout confirmation title" },
+
+  "logoutConfirmMessage": "Are you sure you want to logout?",
+  "@logoutConfirmMessage": { "description": "Logout confirmation message" },
+
+  "assignDelivery": "Assign Delivery",
+  "@assignDelivery": { "description": "Assign delivery button" },
+
+  "addMistri": "Add Mistri",
+  "@addMistri": { "description": "Add mistri button" },
+
+  "mistriName": "Mistri Name",
+  "@mistriName": { "description": "Mistri name field" },
+
+  "phoneNumber": "Phone Number",
+  "@phoneNumber": { "description": "Phone number field" },
+
+  "specialization": "Specialization",
+  "@specialization": { "description": "Specialization field" },
+
+  "addedSuccessfully": "Added successfully!",
+  "@addedSuccessfully": { "description": "Added successfully message" },
+
+  "reviewPods": "Review PODs",
+  "@reviewPods": { "description": "Review PODs button" },
+
+  "buildingGuide": "Building Guide",
+  "@buildingGuide": { "description": "Building guide button" },
+
+  "helpSupport": "Help & Support",
+  "@helpSupport": { "description": "Help and support" },
+
+  "notificationsFilterMessage": "Messages",
+  "@notificationsFilterMessage": { "description": "Messages notification filter" },
+
+  "redeemPoints": "Redeem Points",
+  "@redeemPoints": { "description": "Redeem points button" },
+
+  "distributePoints": "Distribute Points",
+  "@distributePoints": { "description": "Distribute points button" },
+
+  "dealerRewardsTitle": "Dealer Rewards",
+  "@dealerRewardsTitle": { "description": "Dealer rewards title" },
+
+  "architectRewardsTitle": "Architect Rewards",
+  "@architectRewardsTitle": { "description": "Architect rewards title" },
+
+  "tabDistributed": "Distributed",
+  "@tabDistributed": { "description": "Distributed tab" },
+
+  "tabAll": "All",
+  "@tabAll": { "description": "All tab" },
+
+  "howItWorks": "How it Works",
+  "@howItWorks": { "description": "How it works button" },
+
+  "referFriend": "Refer a Friend",
+  "@referFriend": { "description": "Refer friend button" },
+
+  "orderRequestsDescription": "Select a mistri to assign a new delivery",
+  "@orderRequestsDescription": { "description": "Order requests description" },
+
+  "byPhoneAuth": "By continuing, you agree to our",
+  "@byPhoneAuth": { "description": "Terms agreement prefix" },
+
+  "andText": "and",
+  "@andText": { "description": "And conjunction" },
+
+  "otpSentTo": "OTP sent to {phone}",
+  "@otpSentTo": {
+    "description": "OTP sent confirmation",
+    "placeholders": { "phone": {"type": "String"} }
+  },
+
+  "resendOtpIn": "Resend OTP in {seconds}s",
+  "@resendOtpIn": {
+    "description": "Resend OTP countdown",
+    "placeholders": { "seconds": {"type": "int"} }
+  },
+
+  "wrongNumber": "Wrong number?",
+  "@wrongNumber": { "description": "Wrong number link" },
+
+  "changeNumber": "Change",
+  "@changeNumber": { "description": "Change number link" },
+
+  "verifying": "Verifying...",
+  "@verifying": { "description": "Verifying OTP state" },
+
+  "projectNameHint": "Enter project name",
+  "@projectNameHint": { "description": "Project name hint" },
+
+  "selectDealers": "Select Dealers",
+  "@selectDealers": { "description": "Select dealers label" },
+
+  "projectLocationHint": "Enter project location",
+  "@projectLocationHint": { "description": "Project location hint" },
+
+  "expectedDelivery": "Expected Delivery",
+  "@expectedDelivery": { "description": "Expected delivery date" },
+
+  "summary": "Summary",
+  "@summary": { "description": "Summary section" },
+
+  "step": "Step {number}",
+  "@step": {
+    "description": "Step label",
+    "placeholders": { "number": {"type": "int"} }
+  },
+
+  "agoMinutes": "{minutes}m ago",
+  "@agoMinutes": {
+    "description": "Minutes ago",
+    "placeholders": { "minutes": {"type": "int"} }
+  },
+
+  "agoHours": "{hours}h ago",
+  "@agoHours": {
+    "description": "Hours ago",
+    "placeholders": { "hours": {"type": "int"} }
+  },
+
+  "agoDays": "{days}d ago",
+  "@agoDays": {
+    "description": "Days ago",
+    "placeholders": { "days": {"type": "int"} }
+  },
+
+  "tomorrow": "Tomorrow",
+  "@tomorrow": { "description": "Tomorrow label" },
+
+  "quantityUnit": "{quantity} {unit}",
+  "@quantityUnit": {
+    "description": "Quantity with unit",
+    "placeholders": {
+      "quantity": {"type": "String"},
+      "unit": {"type": "String"}
+    }
+  },
+
+  "noMatchSearch": "No results match your search",
+  "@noMatchSearch": { "description": "No search results" },
+
+  "startByCreating": "Start by creating a new project",
+  "@startByCreating": { "description": "Create first project hint" },
+
+  "approveOrder": "Approve",
+  "@approveOrder": { "description": "Approve order button" },
+
+  "rejectOrder": "Reject",
+  "@rejectOrder": { "description": "Reject order button" },
+
+  "moreInfo": "More Info",
+  "@moreInfo": { "description": "More info button" },
+
+  "orderApproved": "Order approved!",
+  "@orderApproved": { "description": "Order approved snackbar" },
+
+  "orderRejected": "Order rejected",
+  "@orderRejected": { "description": "Order rejected snackbar" },
+
+  "podApproved": "POD approved and rewards distributed!",
+  "@podApproved": { "description": "POD approved message" },
+
+  "noOrderRequests": "No order requests",
+  "@noOrderRequests": { "description": "No order requests empty state" },
+
+  "selectRejectReason": "Select Rejection Reason",
+  "@selectRejectReason": { "description": "Rejection reason dialog title" },
+
+  "otpDidntReceive": "Didn't receive the code?",
+  "@otpDidntReceive": { "description": "OTP didn't receive prompt" },
+
+  "otpVerifying": "Verifying...",
+  "@otpVerifying": { "description": "OTP verifying state text" },
+
+  "otpClear": "Clear",
+  "@otpClear": { "description": "Clear OTP fields button" },
+
+  "otpResendCountdown": "Resend in {seconds} s",
+  "@otpResendCountdown": {
+    "description": "OTP resend countdown",
+    "placeholders": {
+      "seconds": { "type": "int" }
+    }
+  }
+}
+

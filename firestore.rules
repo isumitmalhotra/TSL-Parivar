@@ -1,0 +1,282 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============== Helper Functions ==============
+
+    // Check if the user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    function hasTokenRole() {
+      return isAuthenticated() && request.auth.token.role is string;
+    }
+
+    function tokenRole() {
+      return hasTokenRole() ? request.auth.token.role : null;
+    }
+
+    // Check if the user is the document owner
+    function isOwner(userId) {
+      return isAuthenticated() && uid() == userId;
+    }
+
+    // Check if user has a specific role
+    function hasRole(role) {
+      return tokenRole() == role;
+    }
+
+    function isAdmin() {
+      return hasRole('admin');
+    }
+
+    function isValidRole(role) {
+      return role in ['mistri', 'dealer', 'architect', 'admin'];
+    }
+
+    function roleMatchesTokenIfPresent(role) {
+      return !hasTokenRole() || role == tokenRole();
+    }
+
+    function isSafeUserSelfUpdate() {
+      return !request.resource.data.diff(resource.data).changedKeys().hasAny([
+        'role',
+        'uid',
+        'createdAt',
+        'permissions',
+        'claims',
+        'isAdmin'
+      ]);
+    }
+
+    function isOrderParticipant(data) {
+      return data.userId == uid() || data.dealerId == uid();
+    }
+
+    function isDeliveryParticipant(data) {
+      return data.mistriId == uid() || data.dealerId == uid();
+    }
+
+    function isArchitectOwner(data) {
+      return data.architectId == uid();
+    }
+
+    function isChatParticipant(chatData) {
+      return uid() in chatData.participantIds;
+    }
+
+    // ============== Users Collection ==============
+    // Each user can read/write only their own document
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId)
+                    && request.resource.data.keys().hasAll(['phone', 'role'])
+                    && isValidRole(request.resource.data.role)
+                    && !request.resource.data.keys().hasAny([
+                      'permissions',
+                      'claims',
+                      'isAdmin'
+                    ])
+                    && roleMatchesTokenIfPresent(request.resource.data.role);
+      allow update: if (isOwner(userId) && isSafeUserSelfUpdate()) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ============== Dealers Collection ==============
+    // Dealers can manage their own data
+    // Mistris can read their assigned dealer
+    match /dealers/{dealerId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && hasRole('dealer');
+      allow update: if isAuthenticated() && (
+        isOwner(dealerId) ||
+        isAdmin()
+      );
+      allow delete: if false;
+    }
+
+    // ============== Mistris Collection ==============
+    // Mistris can manage their own data
+    // Dealers and admins can manage mistris
+    match /mistris/{mistriId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (
+        hasRole('mistri') ||
+        hasRole('dealer') ||
+        isAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        isOwner(mistriId) ||
+        hasRole('dealer') ||
+        isAdmin()
+      );
+      allow delete: if false;
+    }
+
+    // ============== Orders Collection ==============
+    // Mistris can create orders
+    // Dealers can read and update orders (approve/reject)
+    // Order creator can read their own orders
+    match /orders/{orderId} {
+      allow read: if isAuthenticated() && (
+        isOrderParticipant(resource.data) ||
+        hasRole('dealer') ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        (hasRole('mistri') && request.resource.data.userId == uid()) ||
+        (hasRole('dealer') && request.resource.data.dealerId == uid()) ||
+        isAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        isOrderParticipant(resource.data) ||
+        hasRole('dealer') ||
+        isAdmin()
+      );
+      allow delete: if false;
+    }
+
+    // ============== Deliveries Collection ==============
+    // Dealers can create and manage deliveries
+    // Mistris can read and update assigned deliveries (submit POD)
+    match /deliveries/{deliveryId} {
+      allow read: if isAuthenticated() && (
+        isDeliveryParticipant(resource.data) ||
+        hasRole('dealer') ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        hasRole('dealer') ||
+        isAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        isDeliveryParticipant(resource.data) ||
+        isAdmin()
+      );
+      allow delete: if false;
+    }
+
+    // ============== Rewards Collection ==============
+    // Users can read their own rewards
+    // Only dealers/admin can create/update rewards
+    match /rewards/{rewardId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == uid() ||
+        hasRole('dealer') ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        hasRole('dealer') ||
+        isAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        hasRole('dealer') ||
+        isAdmin()
+      );
+      allow delete: if false;
+    }
+
+    // ============== Products Collection ==============
+    // All authenticated users can read products
+    match /products/{productId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isAdmin();
+      allow update: if isAuthenticated() && isAdmin();
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+
+    // ============== Notifications Collection ==============
+    // Users can read their own notifications
+    // Dealers/admin can create notifications for users
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == uid()
+      );
+      allow create: if isAuthenticated() && (
+        hasRole('dealer') ||
+        isAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        resource.data.userId == uid()
+      );
+      allow delete: if isAuthenticated() && (
+        resource.data.userId == uid()
+      );
+    }
+
+    // ============== Projects Collection (Architect) ==============
+    // Architects can manage their own projects
+    // Dealers can read architect projects
+    match /projects/{projectId} {
+      allow read: if isAuthenticated() && (
+        isArchitectOwner(resource.data) ||
+        hasRole('dealer') ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        hasRole('architect') ||
+        isAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        isArchitectOwner(resource.data) ||
+        isAdmin()
+      );
+      allow delete: if false;
+    }
+
+    // ============== Specifications Collection (Architect) ==============
+    // Architects can manage their own specifications
+    // Dealers can read architect specifications
+    match /specifications/{specId} {
+      allow read: if isAuthenticated() && (
+        isArchitectOwner(resource.data) ||
+        hasRole('dealer') ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        hasRole('architect') ||
+        isAdmin()
+      );
+      allow update: if isAuthenticated() && (
+        isArchitectOwner(resource.data) ||
+        isAdmin()
+      );
+      allow delete: if false;
+    }
+
+    // ============== Chats Collection ==============
+    // Participants can read/write in their chat
+    match /chats/{chatId} {
+      allow read: if isAuthenticated() && isChatParticipant(resource.data);
+      allow create: if isAuthenticated()
+                    && request.resource.data.participantIds is list
+                    && uid() in request.resource.data.participantIds
+                    && request.resource.data.participantIds.size() == 2;
+      allow update: if isAuthenticated() && isChatParticipant(resource.data);
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if isAuthenticated()
+                    && isChatParticipant(get(/databases/$(database)/documents/chats/$(chatId)).data);
+        allow create: if isAuthenticated()
+                      && isChatParticipant(get(/databases/$(database)/documents/chats/$(chatId)).data)
+                      && request.resource.data.senderId == uid();
+        allow update: if isAuthenticated()
+                      && isChatParticipant(get(/databases/$(database)/documents/chats/$(chatId)).data);
+        allow delete: if false;
+      }
+    }
+
+    // ============== Deny All Other Access ==============
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

@@ -1,0 +1,133 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ============== Helper Functions ==============
+
+    // Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && uid() == userId;
+    }
+
+    // Immutable role source: Firebase Auth custom claims
+    function hasTokenRole() {
+      return isAuthenticated() && request.auth.token.role is string;
+    }
+
+    function hasRole(role) {
+      return hasTokenRole() && request.auth.token.role == role;
+    }
+
+    function isAdmin() {
+      return hasRole('admin');
+    }
+
+    function isImageUpload(maxBytes) {
+      return request.resource != null
+             && request.resource.size < maxBytes
+             && request.resource.contentType.matches('image/.*');
+    }
+
+    function hasDeliveryAccess(deliveryId) {
+      return isAdmin() || (
+        isAuthenticated()
+        && firestore.exists(/databases/(default)/documents/deliveries/$(deliveryId))
+        && (
+          firestore.get(/databases/(default)/documents/deliveries/$(deliveryId)).data.mistriId == uid()
+          || firestore.get(/databases/(default)/documents/deliveries/$(deliveryId)).data.dealerId == uid()
+        )
+      );
+    }
+
+    function hasChatAccess(chatId) {
+      return isAdmin() || (
+        isAuthenticated()
+        && firestore.exists(/databases/(default)/documents/chats/$(chatId))
+        && (
+          (firestore.get(/databases/(default)/documents/chats/$(chatId)).data.participantIds is list
+            && firestore.get(/databases/(default)/documents/chats/$(chatId)).data.participantIds.hasAny([uid()]))
+          || (firestore.get(/databases/(default)/documents/chats/$(chatId)).data.participants is list
+            && firestore.get(/databases/(default)/documents/chats/$(chatId)).data.participants.hasAny([uid()]))
+          || firestore.get(/databases/(default)/documents/chats/$(chatId)).data.userId == uid()
+        )
+      );
+    }
+
+    // ============== Active App Paths ==============
+
+    // User profile photos
+    match /profile_photos/{userId}/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated()
+                   && uid() == userId
+                   && isImageUpload(5 * 1024 * 1024);
+    }
+
+    // POD photos uploaded under dealer/delivery buckets
+    match /pod_photos/{dealerId}/{deliveryId}/{allPaths=**} {
+      allow read: if isAuthenticated() && hasDeliveryAccess(deliveryId);
+      allow write: if hasDeliveryAccess(deliveryId)
+                   && isImageUpload(10 * 1024 * 1024)
+                   && request.resource.metadata.deliveryId == deliveryId
+                   && request.resource.metadata.dealerId == dealerId;
+    }
+
+    // Signature uploads for delivery completion
+    match /signatures/{dealerId}/{deliveryId}/{allPaths=**} {
+      allow read: if isAuthenticated() && hasDeliveryAccess(deliveryId);
+      allow write: if hasDeliveryAccess(deliveryId)
+                   && isImageUpload(5 * 1024 * 1024)
+                   && request.resource.metadata.deliveryId == deliveryId
+                   && request.resource.metadata.dealerId == dealerId;
+    }
+
+    // User documents (KYC etc.)
+    match /documents/{userId}/{allPaths=**} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId)
+                   && request.resource != null
+                   && request.resource.size < 10 * 1024 * 1024
+                   && request.resource.metadata != null
+                   && request.resource.metadata.userId == userId;
+    }
+
+    // ============== Hardened Legacy Paths (requested) ==============
+
+    // Restrict delivery path writes to assigned mistri/dealer for that delivery.
+    match /deliveries/{deliveryId}/{allPaths=**} {
+      allow read: if isAuthenticated() && hasDeliveryAccess(deliveryId);
+      allow write: if hasDeliveryAccess(deliveryId)
+                   && isImageUpload(10 * 1024 * 1024)
+                   && request.resource.metadata.deliveryId == deliveryId;
+    }
+
+    // Restrict chat attachment writes to participants/members of the chat.
+    match /chats/{chatId}/{allPaths=**} {
+      allow read: if isAuthenticated() && hasChatAccess(chatId);
+      allow write: if hasChatAccess(chatId)
+                   && request.resource != null
+                   && request.resource.size < 10 * 1024 * 1024;
+    }
+
+    // ============== Product Images ==============
+    match /products/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin(); // Admin-only uploads
+    }
+
+    // ============== Deny all other access ==============
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

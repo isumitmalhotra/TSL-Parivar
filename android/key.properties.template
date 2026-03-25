@@ -1,0 +1,10 @@
+# Release signing key configuration
+# To generate a keystore, run:
+#   keytool -genkey -v -keystore tsl-release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias tsl-parivar
+#
+# Then fill in the values below:
+storePassword=YOUR_STORE_PASSWORD
+keyPassword=YOUR_KEY_PASSWORD
+keyAlias=tsl-parivar
+storeFile=../tsl-release-key.jks
+

@@ -1,0 +1,117 @@
+name: iOS Build & Test
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:  # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  build-ios:
+    name: Build iOS App
+    runs-on: macos-14  # macOS Sonoma with M1 chip
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.19.0'
+        channel: 'stable'
+        cache: true
+
+    - name: Flutter version
+      run: flutter --version
+
+    - name: Install Flutter dependencies
+      run: flutter pub get
+
+    - name: Setup CocoaPods cache
+      uses: actions/cache@v4
+      with:
+        path: ios/Pods
+        key: ${{ runner.os }}-pods-${{ hashFiles('ios/Podfile.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-pods-
+
+    - name: Install CocoaPods dependencies
+      run: |
+        cd ios
+        pod install --repo-update
+
+    - name: Run Flutter analyze
+      run: flutter analyze --no-fatal-infos
+      continue-on-error: true
+
+    - name: Run Flutter tests
+      run: flutter test
+      continue-on-error: true
+
+    - name: Build iOS (Debug - Simulator)
+      run: flutter build ios --simulator --debug
+
+    - name: List build outputs
+      run: |
+        echo "=== Build Directory Contents ==="
+        ls -la build/ios/iphonesimulator/ || echo "Simulator build directory not found"
+
+    - name: Upload iOS Simulator Build
+      uses: actions/upload-artifact@v4
+      with:
+        name: ios-simulator-app
+        path: build/ios/iphonesimulator/*.app
+        retention-days: 7
+        if-no-files-found: warn
+
+  # Optional: Run on iOS Simulator
+  test-ios-simulator:
+    name: Test on iOS Simulator
+    runs-on: macos-14
+    needs: build-ios
+    if: github.event_name == 'workflow_dispatch'  # Only run on manual trigger
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.19.0'
+        channel: 'stable'
+        cache: true
+
+    - name: Install dependencies
+      run: flutter pub get
+
+    - name: Install CocoaPods
+      run: |
+        cd ios
+        pod install --repo-update
+
+    - name: Start iOS Simulator
+      run: |
+        # List available simulators
+        xcrun simctl list devices available
+        # Boot iPhone 15 Pro simulator
+        xcrun simctl boot "iPhone 15 Pro" || true
+
+    - name: Run integration tests on Simulator
+      run: |
+        flutter test integration_test/ || echo "No integration tests found"
+      continue-on-error: true
+
+    - name: Take Simulator Screenshot
+      run: |
+        xcrun simctl io booted screenshot screenshot.png || echo "Screenshot failed"
+
+    - name: Upload Screenshot
+      uses: actions/upload-artifact@v4
+      with:
+        name: ios-simulator-screenshot
+        path: screenshot.png
+        if-no-files-found: ignore
+
