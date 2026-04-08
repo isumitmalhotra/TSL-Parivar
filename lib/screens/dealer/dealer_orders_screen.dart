@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+ import 'package:provider/provider.dart';
 
 import '../../design_system/design_system.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/dealer_models.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/dealer_data_provider.dart';
+import '../../services/firestore_service.dart';
 import '../../widgets/widgets.dart';
 
 /// Dealer Orders/Requests Screen
@@ -21,7 +25,10 @@ class DealerOrdersScreen extends StatefulWidget {
 class _DealerOrdersScreenState extends State<DealerOrdersScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final List<OrderRequestModel> _orders = MockDealerData.mockOrderRequests; // Loaded from Firestore orders collection in production
+  bool _isSubmittingDecision = false;
+
+  List<OrderRequestModel> get _orders =>
+      context.watch<DealerDataProvider>().orders;
 
   @override
   void initState() {
@@ -176,7 +183,7 @@ class _DealerOrdersScreenState extends State<DealerOrdersScreen>
     );
   }
 
-  void _handleApprove(OrderRequestModel order) {
+  Future<void> _handleApprove(OrderRequestModel order) async {
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -191,13 +198,11 @@ class _DealerOrdersScreenState extends State<DealerOrdersScreen>
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Order approved'),
-                  backgroundColor: AppColors.success,
-                ),
+              await _submitOrderDecision(
+                order: order,
+                status: OrderRequestStatus.approved,
               );
             },
             style: ElevatedButton.styleFrom(
@@ -217,17 +222,97 @@ class _DealerOrdersScreenState extends State<DealerOrdersScreen>
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (context) => _RejectOrderSheet(order: order),
+      builder: (context) => _RejectOrderSheet(
+        order: order,
+        onSubmit: (reason, notes) {
+          _submitOrderDecision(
+            order: order,
+            status: OrderRequestStatus.rejected,
+            reason: reason,
+            notes: notes,
+          );
+        },
+      ),
     );
   }
 
-  void _handleRequestInfo(OrderRequestModel order) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Requested more info from ${order.mistriName}'),
-        backgroundColor: AppColors.info,
-      ),
+  Future<void> _handleRequestInfo(OrderRequestModel order) async {
+    await _submitOrderDecision(
+      order: order,
+      status: OrderRequestStatus.moreInfo,
+      reason: 'Requested more information',
     );
+  }
+
+  Future<void> _submitOrderDecision({
+    required OrderRequestModel order,
+    required OrderRequestStatus status,
+    String? reason,
+    String? notes,
+  }) async {
+    if (_isSubmittingDecision) return;
+
+    setState(() => _isSubmittingDecision = true);
+
+    final auth = context.read<AuthProvider>();
+    final dealerId = auth.userId ?? 'unknown_dealer';
+
+    try {
+      await FirestoreService.recordOrderDecision(
+        orderId: order.id,
+        dealerId: dealerId,
+        decision: _toOrderStatusKey(status),
+        reason: reason,
+        notes: notes,
+      );
+
+
+      if (!mounted) return;
+      setState(() => _isSubmittingDecision = false);
+
+      final message = switch (status) {
+        OrderRequestStatus.approved => 'Order approved',
+        OrderRequestStatus.rejected => 'Order rejected',
+        OrderRequestStatus.moreInfo => 'Requested more info from ${order.mistriName}',
+        OrderRequestStatus.newRequest => 'Order updated',
+      };
+
+      final color = switch (status) {
+        OrderRequestStatus.approved => AppColors.success,
+        OrderRequestStatus.rejected => AppColors.error,
+        OrderRequestStatus.moreInfo => AppColors.info,
+        OrderRequestStatus.newRequest => AppColors.primary,
+      };
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: color,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isSubmittingDecision = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to update order. Please try again.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  String _toOrderStatusKey(OrderRequestStatus status) {
+    switch (status) {
+      case OrderRequestStatus.newRequest:
+        return 'newRequest';
+      case OrderRequestStatus.approved:
+        return 'approved';
+      case OrderRequestStatus.rejected:
+        return 'rejected';
+      case OrderRequestStatus.moreInfo:
+        return 'moreInfo';
+    }
   }
 }
 
@@ -572,8 +657,12 @@ class _OrderRequestCard extends StatelessWidget {
 /// Reject order bottom sheet
 class _RejectOrderSheet extends StatefulWidget {
   final OrderRequestModel order;
+  final void Function(String reason, String? notes) onSubmit;
 
-  const _RejectOrderSheet({required this.order});
+  const _RejectOrderSheet({
+    required this.order,
+    required this.onSubmit,
+  });
 
   @override
   State<_RejectOrderSheet> createState() => _RejectOrderSheetState();
@@ -670,12 +759,13 @@ class _RejectOrderSheetState extends State<_RejectOrderSheet> {
                     child: ElevatedButton(
                       onPressed: _selectedReason != null
                           ? () {
+                              final reason = _selectedReason;
+                              if (reason == null) return;
+                              final notes = _notesController.text.trim();
                               Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Order rejected'),
-                                  backgroundColor: AppColors.error,
-                                ),
+                              widget.onSubmit(
+                                reason,
+                                notes.isEmpty ? null : notes,
                               );
                             }
                           : null,

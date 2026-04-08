@@ -163,9 +163,10 @@ class TslBottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveBackgroundColor = backgroundColor ?? AppColors.cardWhite;
-    final effectiveSelectedColor = selectedColor ?? AppColors.primary;
-    final effectiveUnselectedColor = unselectedColor ?? AppColors.textSecondary;
+    final colorScheme = Theme.of(context).colorScheme;
+    final effectiveBackgroundColor = backgroundColor ?? colorScheme.surface;
+    final effectiveSelectedColor = selectedColor ?? colorScheme.primary;
+    final effectiveUnselectedColor = unselectedColor ?? colorScheme.onSurfaceVariant;
 
     return Container(
       decoration: BoxDecoration(

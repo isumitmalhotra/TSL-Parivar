@@ -32,6 +32,7 @@ class _MistriDeliveryDetailsScreenState
     extends State<MistriDeliveryDetailsScreen> with TickerProviderStateMixin {
   late AnimationController _animationController;
   late DeliveryModel _delivery;
+  bool _hasDelivery = false;
 
   @override
   void initState() {
@@ -41,14 +42,13 @@ class _MistriDeliveryDetailsScreenState
       vsync: this,
     )..forward();
 
-    // Find delivery from provider data (falls back to mock)
+    // Find delivery from provider data.
     final allDeliveries = context.read<DeliveryProvider>().allDeliveries;
-    _delivery = allDeliveries.firstWhere(
-      (d) => d.id == widget.deliveryId,
-      orElse: () => allDeliveries.isNotEmpty
-          ? allDeliveries.first
-          : MockMistriData.mockDeliveries.first,
-    );
+    final index = allDeliveries.indexWhere((d) => d.id == widget.deliveryId);
+    if (index >= 0) {
+      _delivery = allDeliveries[index];
+      _hasDelivery = true;
+    }
   }
 
   @override
@@ -59,6 +59,27 @@ class _MistriDeliveryDetailsScreenState
 
   @override
   Widget build(BuildContext context) {
+    if (!_hasDelivery) {
+      return Scaffold(
+        backgroundColor: AppColors.backgroundLight,
+        appBar: AppBar(
+          backgroundColor: AppColors.cardWhite,
+          elevation: 0,
+          title: const Text('Delivery not found'),
+        ),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(AppSpacing.xl),
+            child: TslEmptyState(
+              icon: Icons.local_shipping_outlined,
+              title: 'Delivery unavailable',
+              message: 'This delivery was not found. Please refresh and try again.',
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.backgroundLight,
       body: CustomScrollView(

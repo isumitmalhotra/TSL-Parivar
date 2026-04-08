@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/mistri_models.dart';
 import '../models/shared_models.dart';
@@ -57,11 +58,22 @@ class UserProfile {
       email: data['email'] as String?,
       imageUrl: data['imageUrl'] as String?,
       role: role,
-      joinedDate: data['createdAt'] != null 
-          ? DateTime.tryParse(data['createdAt'] as String) ?? DateTime.now()
-          : DateTime.now(),
+      joinedDate: _parseDateTime(data['createdAt']) ?? DateTime.now(),
       roleSpecificData: data,
     );
+  }
+
+  static DateTime? _parseDateTime(dynamic rawValue) {
+    if (rawValue is Timestamp) {
+      return rawValue.toDate();
+    }
+    if (rawValue is DateTime) {
+      return rawValue;
+    }
+    if (rawValue is String) {
+      return DateTime.tryParse(rawValue);
+    }
+    return null;
   }
 
   /// Convert to Firestore map
@@ -79,6 +91,8 @@ class UserProfile {
 
 /// Provider for managing user data and profile
 class UserProvider extends ChangeNotifier {
+  static const String _defaultDisplayName = 'TSL User';
+
   UserProfile? _currentUser;
   bool _isLoading = false;
   String? _errorMessage;
@@ -97,6 +111,54 @@ class UserProvider extends ChangeNotifier {
   ArchitectUser? get architectData => _architectData;
 
   bool get hasUser => _currentUser != null;
+  bool get canEvaluateProfileCompleteness => _currentUser != null;
+
+  bool get isProfileComplete {
+    final user = _currentUser;
+    if (user == null) return false;
+
+    final name = user.name.trim();
+    final location = (user.roleSpecificData['location'] as String?)?.trim() ?? '';
+    final address = (user.roleSpecificData['address'] as String?)?.trim() ?? '';
+
+    return name.isNotEmpty &&
+        name.toLowerCase() != _defaultDisplayName.toLowerCase() &&
+        location.isNotEmpty &&
+        address.isNotEmpty;
+  }
+
+  Future<bool> completeMandatoryProfile({
+    required String name,
+    required String location,
+    required String address,
+    String? city,
+    String? pincode,
+    String? email,
+  }) async {
+    final trimmedName = name.trim();
+    final trimmedLocation = location.trim();
+    final trimmedAddress = address.trim();
+    final trimmedEmail = email?.trim();
+
+    if (trimmedName.isEmpty ||
+        trimmedLocation.isEmpty ||
+        trimmedAddress.isEmpty) {
+      _errorMessage = 'Please complete all required fields.';
+      notifyListeners();
+      return false;
+    }
+
+    return updateProfile(
+      name: trimmedName,
+      location: trimmedLocation,
+      address: trimmedAddress,
+      city: city,
+      pincode: pincode,
+      email: (trimmedEmail == null || trimmedEmail.isEmpty)
+          ? null
+          : trimmedEmail,
+    );
+  }
 
   /// Load authenticated user data from Firestore.
   Future<void> loadUserData(
@@ -116,11 +178,16 @@ class UserProvider extends ChangeNotifier {
 
       if (userDoc.exists && userDoc.data() != null) {
         final data = userDoc.data()!;
-        _currentUser = UserProfile.fromFirestore(userId, data, role);
+        final storedRoleKey = data['role'] as String?;
+        final effectiveRole = storedRoleKey != null
+            ? UserRoleExtension.fromKey(storedRoleKey)
+            : role;
+
+        _currentUser = UserProfile.fromFirestore(userId, data, effectiveRole);
         debugPrint('✅ User data loaded from Firestore');
 
         // Load role-specific data from respective collection
-        await _loadRoleSpecificDataFromFirestore(userId, role);
+        await _loadRoleSpecificDataFromFirestore(userId, effectiveRole);
       } else {
         await _createInitialUserDocument(
           userId: userId,
@@ -175,34 +242,98 @@ class UserProvider extends ChangeNotifier {
     try {
       switch (role) {
         case UserRole.mistri:
-          final mistriDoc = await FirestoreService.getDocument(
+          var mistriDoc = await FirestoreService.getDocument(
             collection: FirestoreService.mistrisCollection,
             documentId: userId,
           );
+
+          if (!mistriDoc.exists || mistriDoc.data() == null) {
+            final phone = _currentUser?.phone;
+            if (phone != null && phone.trim().isNotEmpty) {
+              await FirestoreService.ensureMistriProfileForUser(
+                userId: userId,
+                phone: phone,
+                name: _currentUser?.name,
+              );
+              mistriDoc = await FirestoreService.getDocument(
+                collection: FirestoreService.mistrisCollection,
+                documentId: userId,
+              );
+            }
+          }
+
           if (mistriDoc.exists && mistriDoc.data() != null) {
             final data = mistriDoc.data()!;
-            // Get assigned dealer or use a default placeholder
+            // Support canonical dealerId and legacy assignedDealer map.
+            DealerModel assignedDealer = const DealerModel(
+              id: 'default',
+              name: 'Not Assigned',
+              shopName: 'No Dealer',
+              phone: '',
+              address: '',
+              rating: 0,
+              totalDeliveries: 0,
+            );
+
             final dealerData = data['assignedDealer'] as Map<String, dynamic>?;
-            final assignedDealer = dealerData != null
-                ? DealerModel(
-                    id: (dealerData['id'] as String?) ?? '',
-                    name: (dealerData['name'] as String?) ?? 'Dealer',
-                    shopName: (dealerData['shopName'] as String?) ?? 'Shop',
-                    phone: (dealerData['phone'] as String?) ?? '',
-                    address: (dealerData['address'] as String?) ?? '',
-                    imageUrl: dealerData['imageUrl'] as String?,
-                    rating: ((dealerData['rating'] as num?) ?? 0).toDouble(),
-                    totalDeliveries: (dealerData['totalDeliveries'] as int?) ?? 0,
-                  )
-                : const DealerModel(
-                    id: 'default',
-                    name: 'Not Assigned',
-                    shopName: 'No Dealer',
-                    phone: '',
-                    address: '',
-                    rating: 0,
-                    totalDeliveries: 0,
+            if (dealerData != null) {
+              assignedDealer = DealerModel(
+                id: (dealerData['id'] as String?) ?? '',
+                name: (dealerData['name'] as String?) ?? 'Dealer',
+                shopName: (dealerData['shopName'] as String?) ?? 'Shop',
+                phone: (dealerData['phone'] as String?) ?? '',
+                address: (dealerData['address'] as String?) ?? '',
+                imageUrl: dealerData['imageUrl'] as String?,
+                rating: ((dealerData['rating'] as num?) ?? 0).toDouble(),
+                totalDeliveries: (dealerData['totalDeliveries'] as int?) ?? 0,
+              );
+            } else {
+              final dealerId = (data['dealerId'] as String?) ?? '';
+              if (dealerId.isNotEmpty) {
+                final dealerDoc = await FirestoreService.getDocument(
+                  collection: FirestoreService.dealersCollection,
+                  documentId: dealerId,
+                );
+                final dealerInfo = dealerDoc.data();
+                Map<String, dynamic>? dealerUserInfo;
+                try {
+                  final dealerUserDoc = await FirestoreService.getDocument(
+                    collection: FirestoreService.usersCollection,
+                    documentId: dealerId,
                   );
+                  dealerUserInfo = dealerUserDoc.data();
+                } catch (_) {
+                  dealerUserInfo = null;
+                }
+
+                final resolvedName = (dealerInfo?['name'] as String?) ??
+                    (dealerUserInfo?['name'] as String?) ??
+                    'Dealer';
+                final resolvedShop = (dealerInfo?['shopName'] as String?) ??
+                    (dealerUserInfo?['shopName'] as String?) ??
+                    resolvedName;
+                final resolvedPhone = (dealerInfo?['phone'] as String?) ??
+                    (dealerUserInfo?['phone'] as String?) ??
+                    '';
+                final resolvedAddress = (dealerInfo?['address'] as String?) ??
+                    (dealerUserInfo?['address'] as String?) ??
+                    (dealerUserInfo?['addressLine'] as String?) ??
+                    (dealerUserInfo?['location'] as String?) ??
+                    '';
+                assignedDealer = DealerModel(
+                  id: dealerId,
+                  name: resolvedName,
+                  shopName: resolvedShop,
+                  phone: resolvedPhone,
+                  address: resolvedAddress,
+                  imageUrl: (dealerInfo?['imageUrl'] as String?) ??
+                      (dealerUserInfo?['imageUrl'] as String?),
+                  rating: ((dealerInfo?['rating'] as num?) ?? 0).toDouble(),
+                  totalDeliveries: (dealerInfo?['totalDeliveries'] as int?) ?? 0,
+                );
+              }
+            }
+
             _mistriData = MistriUser(
               id: userId,
               name: _currentUser?.name ?? 'Mistri',
@@ -259,6 +390,10 @@ class UserProvider extends ChangeNotifier {
     String? name,
     String? email,
     String? imageUrl,
+    String? location,
+    String? address,
+    String? city,
+    String? pincode,
   }) async {
     if (_currentUser == null) return false;
 
@@ -271,19 +406,58 @@ class UserProvider extends ChangeNotifier {
       if (name != null) updateData['name'] = name;
       if (email != null) updateData['email'] = email;
       if (imageUrl != null) updateData['imageUrl'] = imageUrl;
-
-      await FirestoreService.updateDocument(
-        collection: FirestoreService.usersCollection,
-        documentId: _currentUser!.id,
-        data: updateData,
+      if (location != null) updateData['location'] = location;
+      if (address != null) updateData['address'] = address;
+      final locationContractData = _buildLocationContractData(
+        location: location,
+        address: address,
+        city: city,
+        pincode: pincode,
       );
+      updateData.addAll(locationContractData);
+
+      if (updateData.isEmpty) {
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      }
+
+      try {
+        await FirestoreService.updateDocument(
+          collection: FirestoreService.usersCollection,
+          documentId: _currentUser!.id,
+          data: updateData,
+        );
+      } on FirebaseException catch (e) {
+        if (e.code == 'not-found') {
+          // Recover from missing profile doc by recreating with merge semantics.
+          await FirestoreService.saveUserProfile(
+            uid: _currentUser!.id,
+            data: {
+              'phone': _currentUser!.phone,
+              'role': _currentUser!.role.key,
+              ...updateData,
+            },
+          );
+        } else {
+          rethrow;
+        }
+      }
       debugPrint('✅ Profile updated in Firestore');
+
+      await _syncRoleLocationData(locationContractData);
 
       // Update local state
       _currentUser = _currentUser!.copyWith(
         name: name,
         email: email,
         imageUrl: imageUrl,
+        roleSpecificData: {
+          ..._currentUser!.roleSpecificData,
+          if (location != null) 'location': location,
+          if (address != null) 'address': address,
+          ...locationContractData,
+        },
       );
 
       // Update role-specific data as well
@@ -313,6 +487,89 @@ class UserProvider extends ChangeNotifier {
       _errorMessage = 'Failed to update profile';
       notifyListeners();
       return false;
+    }
+  }
+
+  Map<String, dynamic> _buildLocationContractData({
+    String? location,
+    String? address,
+    String? city,
+    String? pincode,
+  }) {
+    final contractData = <String, dynamic>{};
+
+    final normalizedLocation = location?.trim();
+    final normalizedAddress = address?.trim();
+    final normalizedCity = city?.trim();
+    final normalizedPincode = pincode?.trim();
+
+    final resolvedCity = (normalizedCity != null && normalizedCity.isNotEmpty)
+        ? normalizedCity
+        : _extractCityFromLocation(normalizedLocation);
+
+    if (normalizedAddress != null && normalizedAddress.isNotEmpty) {
+      contractData['addressLine'] = normalizedAddress;
+    }
+    if (resolvedCity != null && resolvedCity.isNotEmpty) {
+      contractData['city'] = resolvedCity;
+      contractData['cityKey'] = resolvedCity.toLowerCase();
+    }
+    if (normalizedPincode != null && normalizedPincode.isNotEmpty) {
+      contractData['pincode'] = normalizedPincode;
+    }
+
+    final geoPoint = _tryParseGeoPoint(normalizedLocation);
+    if (geoPoint != null) {
+      contractData['geo'] = geoPoint;
+    }
+
+    if (contractData.isNotEmpty) {
+      contractData['locationUpdatedAt'] = FieldValue.serverTimestamp();
+    }
+
+    return contractData;
+  }
+
+  String? _extractCityFromLocation(String? location) {
+    if (location == null || location.isEmpty) return null;
+    final parts = location.split(',');
+    if (parts.isEmpty) return null;
+    final city = parts.first.trim();
+    return city.isEmpty ? null : city;
+  }
+
+  GeoPoint? _tryParseGeoPoint(String? location) {
+    if (location == null || location.isEmpty) return null;
+    final match = RegExp(r'^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$')
+        .firstMatch(location);
+    if (match == null) return null;
+    final lat = double.tryParse(match.group(1)!);
+    final lng = double.tryParse(match.group(2)!);
+    if (lat == null || lng == null) return null;
+    return GeoPoint(lat, lng);
+  }
+
+  Future<void> _syncRoleLocationData(Map<String, dynamic> locationContractData) async {
+    if (_currentUser == null || locationContractData.isEmpty) return;
+
+    final uid = _currentUser!.id;
+    try {
+      switch (_currentUser!.role) {
+        case UserRole.mistri:
+          await FirestoreService.mistrisCollection
+              .doc(uid)
+              .set(locationContractData, SetOptions(merge: true));
+          break;
+        case UserRole.dealer:
+          await FirestoreService.dealersCollection
+              .doc(uid)
+              .set(locationContractData, SetOptions(merge: true));
+          break;
+        case UserRole.architect:
+          break;
+      }
+    } catch (e) {
+      debugPrint('⚠️ Failed to sync role location contract: $e');
     }
   }
 

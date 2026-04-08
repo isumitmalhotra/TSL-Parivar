@@ -42,6 +42,17 @@ class _ArchitectShellScreenState extends State<ArchitectShellScreen> {
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(covariant ArchitectShellScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialIndex != widget.initialIndex &&
+        widget.initialIndex != _currentIndex) {
+      _currentIndex = widget.initialIndex;
+      _pageController.jumpToPage(_currentIndex);
+      setState(() {});
+    }
+  }
+
   void _onTabChanged(int index) {
     if (index == 3) {
       context.push(AppRoutes.profileForRole(UserRole.architect));

@@ -2,10 +2,13 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../../design_system/design_system.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/dealer_models.dart';
+import '../../navigation/app_router.dart';
+import '../../providers/dealer_data_provider.dart';
 import '../../widgets/widgets.dart';
 
 /// Dealer Home Screen
@@ -29,12 +32,32 @@ class _DealerHomeScreenState extends State<DealerHomeScreen>
   late AnimationController _floatController;
   late AnimationController _pulseController;
 
-  final DealerUser _user = MockDealerData.mockUser; // Loaded from Firestore in production
-  List<DealerMistriModel> get _mistris => MockDealerData.mockMistris; // Loaded from Firestore dealers/{id}/mistris in production
+  DealerUser get _user => context.watch<DealerDataProvider>().dealerUser;
+  List<DealerMistriModel> get _mistris =>
+      context.watch<DealerDataProvider>().mistris;
 
-  DealerMistriModel get _topMistri => _mistris
-      .where((m) => m.status == MistriStatus.active)
-      .reduce((a, b) => a.successRate > b.successRate ? a : b);
+  DealerMistriModel get _topMistri {
+    if (_mistris.isEmpty) {
+      return DealerMistriModel(
+        id: 'na',
+        name: 'No Mistris',
+        phone: '',
+        specialization: 'N/A',
+        status: MistriStatus.pending,
+        totalDeliveries: 0,
+        completedDeliveries: 0,
+        successRate: 0,
+        rewardPoints: 0,
+        joinedDate: DateTime.fromMillisecondsSinceEpoch(0),
+      );
+    }
+
+    final activeMistris = _mistris.where(
+      (m) => m.status == MistriStatus.active,
+    );
+    final source = activeMistris.isEmpty ? _mistris : activeMistris.toList();
+    return source.reduce((a, b) => a.successRate > b.successRate ? a : b);
+  }
 
   @override
   void initState() {
@@ -67,7 +90,7 @@ class _DealerHomeScreenState extends State<DealerHomeScreen>
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: CustomScrollView(
         slivers: [
           _buildAppBar(l10n),
@@ -225,13 +248,16 @@ class _DealerHomeScreenState extends State<DealerHomeScreen>
     return AnimatedBuilder(
       animation: _heroController,
       builder: (context, child) {
-        final slideAnimation = Tween<Offset>(
-          begin: const Offset(0, 0.3),
-          end: Offset.zero,
-        ).animate(CurvedAnimation(
-          parent: _heroController,
-          curve: Curves.easeOutCubic,
-        ));
+        final slideAnimation =
+            Tween<Offset>(
+              begin: const Offset(0, 0.3),
+              end: Offset.zero,
+            ).animate(
+              CurvedAnimation(
+                parent: _heroController,
+                curve: Curves.easeOutCubic,
+              ),
+            );
 
         return SlideTransition(
           position: slideAnimation,
@@ -363,10 +389,7 @@ class _DealerHomeScreenState extends State<DealerHomeScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TslSectionHeader(
-            title: l10n.navHome,
-            icon: Icons.dashboard,
-          ),
+          TslSectionHeader(title: l10n.navHome, icon: Icons.dashboard),
           const SizedBox(height: AppSpacing.md),
           Row(
             children: [
@@ -500,7 +523,9 @@ class _DealerHomeScreenState extends State<DealerHomeScreen>
                 child: Text(
                   trend,
                   style: AppTypography.caption.copyWith(
-                    color: trendPositive ? AppColors.success : AppColors.warning,
+                    color: trendPositive
+                        ? AppColors.success
+                        : AppColors.warning,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -527,7 +552,8 @@ class _DealerHomeScreenState extends State<DealerHomeScreen>
           AnimatedBuilder(
             animation: _floatController,
             builder: (context, child) {
-              final floatOffset = math.sin(_floatController.value * math.pi) * 3;
+              final floatOffset =
+                  math.sin(_floatController.value * math.pi) * 3;
               return Transform.translate(
                 offset: Offset(0, floatOffset),
                 child: Container(
@@ -704,7 +730,9 @@ class _DealerHomeScreenState extends State<DealerHomeScreen>
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF66BB6A).withValues(alpha: 0.3),
+                              color: const Color(
+                                0xFF66BB6A,
+                              ).withValues(alpha: 0.3),
                               blurRadius: 10,
                               offset: const Offset(0, 4),
                             ),
@@ -724,10 +752,7 @@ class _DealerHomeScreenState extends State<DealerHomeScreen>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              _topMistri.name,
-                              style: AppTypography.h3,
-                            ),
+                            Text(_topMistri.name, style: AppTypography.h3),
                             Text(
                               _topMistri.specialization,
                               style: AppTypography.bodySmall.copyWith(
@@ -735,20 +760,21 @@ class _DealerHomeScreenState extends State<DealerHomeScreen>
                               ),
                             ),
                             const SizedBox(height: AppSpacing.sm),
-                            Row(
+                            Wrap(
+                              spacing: AppSpacing.lg,
+                              runSpacing: AppSpacing.xs,
                               children: [
                                 _buildMistriStat(
                                   icon: Icons.local_shipping,
                                   value: '${_topMistri.completedDeliveries}',
                                   label: 'Deliveries',
                                 ),
-                                const SizedBox(width: AppSpacing.lg),
                                 _buildMistriStat(
                                   icon: Icons.trending_up,
-                                  value: '${_topMistri.successRate.toStringAsFixed(1)}%',
+                                  value:
+                                      '${_topMistri.successRate.toStringAsFixed(1)}%',
                                   label: 'Success',
                                 ),
-                                const SizedBox(width: AppSpacing.lg),
                                 _buildMistriStat(
                                   icon: Icons.star,
                                   value: '${_topMistri.rewardPoints}',
@@ -807,10 +833,7 @@ class _DealerHomeScreenState extends State<DealerHomeScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TslSectionHeader(
-            title: l10n.commonViewAll,
-            icon: Icons.flash_on,
-          ),
+          TslSectionHeader(title: l10n.commonViewAll, icon: Icons.flash_on),
           const SizedBox(height: AppSpacing.md),
           Row(
             children: [
@@ -820,7 +843,7 @@ class _DealerHomeScreenState extends State<DealerHomeScreen>
                   label: l10n.dealerHomeAddMistri,
                   gradient: const [Color(0xFF43A047), Color(0xFF2E7D32)],
                   onTap: () {
-                    _showAddMistriDialog();
+                    context.go('${AppRoutes.dealerHome}?tab=mistris');
                   },
                 ),
               ),
@@ -841,7 +864,9 @@ class _DealerHomeScreenState extends State<DealerHomeScreen>
                   icon: Icons.pending_actions,
                   label: l10n.dealerHomeKpiPending,
                   gradient: const [Color(0xFF66BB6A), Color(0xFF43A047)],
-                  badge: _user.pendingApprovals > 0 ? '${_user.pendingApprovals}' : null,
+                  badge: _user.pendingApprovals > 0
+                      ? '${_user.pendingApprovals}'
+                      : null,
                   onTap: () {
                     context.push('/dealer/pending-approvals');
                   },
@@ -937,6 +962,8 @@ class _DealerHomeScreenState extends State<DealerHomeScreen>
                         fontWeight: FontWeight.w600,
                         height: 1.2,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -949,93 +976,6 @@ class _DealerHomeScreenState extends State<DealerHomeScreen>
   }
 
   // Helper methods for dialogs
-  void _showAddMistriDialog() {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.6,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          children: [
-            const SizedBox(height: 12),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text('Add New Mistri', style: AppTypography.h2),
-            const SizedBox(height: 8),
-            Text(
-              'Enter mistri details to add them to your network',
-              style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-            const Divider(height: 32),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    TextField(
-                      decoration: const InputDecoration(
-                        labelText: 'Mistri Name',
-                        prefixIcon: Icon(Icons.person),
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      decoration: const InputDecoration(
-                        labelText: 'Phone Number',
-                        prefixIcon: Icon(Icons.phone),
-                        border: OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.phone,
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      decoration: const InputDecoration(
-                        labelText: 'Specialization',
-                        prefixIcon: Icon(Icons.work),
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const Spacer(),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Mistri added successfully!')),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                        child: const Text('Add Mistri'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   void _showAssignDeliveryDialog() {
     showModalBottomSheet<void>(
@@ -1079,19 +1019,27 @@ class _DealerHomeScreenState extends State<DealerHomeScreen>
                     margin: const EdgeInsets.only(bottom: 8),
                     child: ListTile(
                       leading: CircleAvatar(
-                        backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                        backgroundColor: AppColors.primary.withValues(
+                          alpha: 0.1,
+                        ),
                         child: Text(
                           mistri.name.substring(0, 1),
                           style: const TextStyle(color: AppColors.primary),
                         ),
                       ),
                       title: Text(mistri.name),
-                      subtitle: Text('${mistri.totalDeliveries - mistri.completedDeliveries} active deliveries'),
+                      subtitle: Text(
+                        '${mistri.totalDeliveries - mistri.completedDeliveries} active deliveries',
+                      ),
                       trailing: ElevatedButton(
                         onPressed: () {
                           Navigator.pop(context);
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Delivery assigned to ${mistri.name}')),
+                            SnackBar(
+                              content: Text(
+                                'Delivery assigned to ${mistri.name}',
+                              ),
+                            ),
                           );
                         },
                         child: const Text('Assign'),

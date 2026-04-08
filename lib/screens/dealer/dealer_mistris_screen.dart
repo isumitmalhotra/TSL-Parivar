@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../design_system/design_system.dart';
 import '../../l10n/app_localizations.dart';
+import '../../models/base_model.dart';
 import '../../models/dealer_models.dart';
+import '../../providers/dealer_data_provider.dart';
 import '../../services/url_launcher_service.dart';
 import '../../widgets/widgets.dart';
 
@@ -25,7 +28,10 @@ class _DealerMistrisScreenState extends State<DealerMistrisScreen>
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
   final Debouncer _searchDebouncer = Debouncer();
-  final List<DealerMistriModel> _mistris = MockDealerData.mockMistris; // Loaded from Firestore in production
+  List<DealerMistriModel> get _mistris =>
+      context.watch<DealerDataProvider>().mistris;
+  List<NearbyMistriModel> get _nearbyMistris =>
+      context.watch<DealerDataProvider>().nearbyMistris;
 
   String _searchQuery = '';
   String _sortBy = 'name';
@@ -182,20 +188,28 @@ class _DealerMistrisScreenState extends State<DealerMistrisScreen>
             ),
             child: TextField(
               controller: _searchController,
-              onChanged: (value) => _searchDebouncer.run(() => setState(() => _searchQuery = value)),
+              onChanged: (value) => _searchDebouncer.run(
+                () => setState(() => _searchQuery = value),
+              ),
               decoration: InputDecoration(
                 hintText: 'Search mistris...',
                 hintStyle: AppTypography.bodyMedium.copyWith(
                   color: AppColors.textSecondary,
                 ),
-                prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
+                prefixIcon: const Icon(
+                  Icons.search,
+                  color: AppColors.textSecondary,
+                ),
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
                         onPressed: () {
                           _searchController.clear();
                           setState(() => _searchQuery = '');
                         },
-                        icon: const Icon(Icons.clear, color: AppColors.textSecondary),
+                        icon: const Icon(
+                          Icons.clear,
+                          color: AppColors.textSecondary,
+                        ),
                       )
                     : null,
                 border: InputBorder.none,
@@ -208,20 +222,20 @@ class _DealerMistrisScreenState extends State<DealerMistrisScreen>
           ),
           const SizedBox(height: AppSpacing.md),
           // Stats row
-          Row(
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
             children: [
               _buildStatChip(
                 label: 'Total',
                 value: '${_mistris.length}',
                 color: AppColors.primary,
               ),
-              const SizedBox(width: AppSpacing.sm),
               _buildStatChip(
                 label: 'Active',
                 value: '${_getCountForStatus(MistriStatus.active)}',
                 color: AppColors.success,
               ),
-              const SizedBox(width: AppSpacing.sm),
               _buildStatChip(
                 label: 'Pending',
                 value: '${_getCountForStatus(MistriStatus.pending)}',
@@ -229,9 +243,105 @@ class _DealerMistrisScreenState extends State<DealerMistrisScreen>
               ),
             ],
           ),
+          const SizedBox(height: AppSpacing.md),
+          _buildNearbyDiscoverySection(),
         ],
       ),
     );
+  }
+
+  Widget _buildNearbyDiscoverySection() {
+    if (_nearbyMistris.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Nearby Registered Mistris',
+          style: AppTypography.labelLarge.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        ..._nearbyMistris.take(4).map(
+          (mistri) => Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: AppColors.backgroundLight,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          mistri.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.labelMedium.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.xxs),
+                        Text(
+                          '${mistri.specialization} - ${mistri.city}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.caption.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  SizedBox(
+                    height: 34,
+                    child: ElevatedButton(
+                      onPressed: () => _attachNearbyMistri(mistri),
+                      child: const Text('Attach'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _attachNearbyMistri(NearbyMistriModel mistri) async {
+    try {
+      final result = await context.read<DealerDataProvider>().attachNearbyMistri(
+        mistri.id,
+      );
+      if (!mounted) return;
+      final message = result.wasReassignedFromAnotherDealer
+          ? 'Mistri moved to your account successfully'
+          : 'Mistri linked successfully';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: AppColors.success),
+      );
+
+      final smsBody = result.isPendingInvite
+          ? 'TSL Parivar: You were added as mistri. Login with OTP on this number to activate your account.'
+          : 'TSL Parivar: Your profile is linked with a dealer. Login to view assigned dealer details and start orders.';
+      await UrlLauncherService.launchSms(result.normalizedPhone, body: smsBody);
+    } catch (_) {
+      if (!mounted) return;
+      final error = context.read<DealerDataProvider>().errorMessage;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error ?? 'Unable to attach mistri.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   Widget _buildStatChip({
@@ -259,10 +369,7 @@ class _DealerMistrisScreenState extends State<DealerMistrisScreen>
             ),
           ),
           const SizedBox(width: AppSpacing.xs),
-          Text(
-            label,
-            style: AppTypography.caption.copyWith(color: color),
-          ),
+          Text(label, style: AppTypography.caption.copyWith(color: color)),
         ],
       ),
     );
@@ -273,6 +380,7 @@ class _DealerMistrisScreenState extends State<DealerMistrisScreen>
       color: AppColors.cardWhite,
       child: TabBar(
         controller: _tabController,
+        isScrollable: true,
         onTap: (_) => setState(() {}),
         labelColor: AppColors.primary,
         unselectedLabelColor: AppColors.textSecondary,
@@ -288,7 +396,10 @@ class _DealerMistrisScreenState extends State<DealerMistrisScreen>
                 Text(tab.label),
                 const SizedBox(width: AppSpacing.xs),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.disabled.withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(10),
@@ -341,7 +452,9 @@ class _DealerMistrisScreenState extends State<DealerMistrisScreen>
         itemBuilder: (context, index) {
           return Padding(
             padding: EdgeInsets.only(
-              bottom: index < mistris.length - 1 ? AppSpacing.md : AppSpacing.xxxl,
+              bottom: index < mistris.length - 1
+                  ? AppSpacing.md
+                  : AppSpacing.xxxl,
             ),
             child: _MistriCard(
               mistri: mistris[index],
@@ -423,9 +536,7 @@ class _MistriCard extends StatelessWidget {
                       width: 56,
                       height: 56,
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: _getGradientColors(),
-                        ),
+                        gradient: LinearGradient(colors: _getGradientColors()),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Center(
@@ -451,6 +562,7 @@ class _MistriCard extends StatelessWidget {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
+                              const SizedBox(width: AppSpacing.xs),
                               _buildStatusBadge(),
                             ],
                           ),
@@ -535,7 +647,9 @@ class _MistriCard extends StatelessWidget {
                         icon: Icons.assignment,
                         label: 'Assign',
                         color: AppColors.primary,
-                        onTap: mistri.status == MistriStatus.active ? onAssign : null,
+                        onTap: mistri.status == MistriStatus.active
+                            ? onAssign
+                            : null,
                       ),
                     ),
                   ],
@@ -575,6 +689,8 @@ class _MistriCard extends StatelessWidget {
           color: mistri.status.color,
           fontWeight: FontWeight.w600,
         ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }
@@ -608,17 +724,15 @@ class _MistriCard extends StatelessWidget {
             color: AppColors.textSecondary,
             fontSize: 10,
           ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
       ],
     );
   }
 
   Widget _buildDivider() {
-    return Container(
-      width: 1,
-      height: 30,
-      color: AppColors.divider,
-    );
+    return Container(width: 1, height: 30, color: AppColors.divider);
   }
 
   Color _getSuccessColor() {
@@ -635,7 +749,9 @@ class _MistriCard extends StatelessWidget {
   }) {
     final isEnabled = onTap != null;
     return Material(
-      color: isEnabled ? color.withValues(alpha: 0.1) : AppColors.disabled.withValues(alpha: 0.3),
+      color: isEnabled
+          ? color.withValues(alpha: 0.1)
+          : AppColors.disabled.withValues(alpha: 0.3),
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         onTap: onTap,
@@ -651,11 +767,15 @@ class _MistriCard extends StatelessWidget {
                 color: isEnabled ? color : AppColors.textSecondary,
               ),
               const SizedBox(width: AppSpacing.xs),
-              Text(
-                label,
-                style: AppTypography.labelSmall.copyWith(
-                  color: isEnabled ? color : AppColors.textSecondary,
-                  fontWeight: FontWeight.w600,
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.labelSmall.copyWith(
+                    color: isEnabled ? color : AppColors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
@@ -681,7 +801,11 @@ class _TabBarDelegate extends SliverPersistentHeaderDelegate {
   _TabBarDelegate({required this.child});
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
     return child;
   }
 
@@ -705,10 +829,10 @@ class _AddMistriSheet extends StatefulWidget {
 
 class _AddMistriSheetState extends State<_AddMistriSheet> {
   final _formKey = GlobalKey<FormState>();
-  String _name = '';
-  // ignore: unused_field - will be sent to API when backend is connected
-  String _phone = '';
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
   String _specialization = 'TMT Bars & Structural Steel';
+  bool _isSubmitting = false;
 
   final List<String> _specializations = [
     'TMT Bars & Structural Steel',
@@ -717,6 +841,63 @@ class _AddMistriSheetState extends State<_AddMistriSheet> {
     'Binding Wire',
     'All Materials',
   ];
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      final result = await context
+          .read<DealerDataProvider>()
+          .addMistriForDealer(
+            name: _nameController.text.trim(),
+            phone: _phoneController.text.trim(),
+            specialization: _specialization,
+          );
+
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.pop(context);
+
+      final message = result.wasReassignedFromAnotherDealer
+          ? 'Mistri moved to your account successfully'
+          : result.isPendingInvite
+          ? 'Mistri invite created. Link will activate after login.'
+          : result.wasExisting
+          ? 'Mistri linked successfully'
+          : 'Mistri added successfully';
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: AppColors.success),
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      final providerMessage = context.read<DealerDataProvider>().errorMessage;
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            providerMessage ?? 'Unable to add mistri. Please try again.',
+          ),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -747,6 +928,7 @@ class _AddMistriSheetState extends State<_AddMistriSheet> {
                 Text('Add New Mistri', style: AppTypography.h2),
                 const SizedBox(height: AppSpacing.xxl),
                 TextFormField(
+                  controller: _nameController,
                   decoration: InputDecoration(
                     labelText: 'Full Name',
                     prefixIcon: const Icon(Icons.person_outline),
@@ -754,12 +936,13 @@ class _AddMistriSheetState extends State<_AddMistriSheet> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  onChanged: (value) => _name = value,
-                  validator: (value) =>
-                      value?.isEmpty ?? true ? 'Please enter name' : null,
+                  validator: (value) => value?.trim().isEmpty ?? true
+                      ? 'Please enter name'
+                      : null,
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 TextFormField(
+                  controller: _phoneController,
                   decoration: InputDecoration(
                     labelText: 'Phone Number',
                     prefixIcon: const Icon(Icons.phone_outlined),
@@ -769,10 +952,13 @@ class _AddMistriSheetState extends State<_AddMistriSheet> {
                     ),
                   ),
                   keyboardType: TextInputType.phone,
-                  onChanged: (value) => _phone = value,
-                  validator: (value) => (value?.length ?? 0) < 10
-                      ? 'Please enter valid phone'
-                      : null,
+                  validator: (value) {
+                    final validation = Validators.validatePhone(value);
+                    if (validation.isValid) {
+                      return null;
+                    }
+                    return validation.errors.first;
+                  },
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 DropdownButtonFormField<String>(
@@ -797,17 +983,8 @@ class _AddMistriSheetState extends State<_AddMistriSheet> {
                   child: TslPrimaryButton(
                     label: 'Add Mistri',
                     leadingIcon: Icons.person_add,
-                    onPressed: () {
-                      if (_formKey.currentState!.validate()) {
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Mistri added successfully'),
-                            backgroundColor: AppColors.success,
-                          ),
-                        );
-                      }
-                    },
+                    isLoading: _isSubmitting,
+                    onPressed: _isSubmitting ? null : _submit,
                   ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
@@ -900,34 +1077,59 @@ class _MistriDetailsSheet extends StatelessWidget {
                 // Stats grid
                 Row(
                   children: [
-                    Expanded(child: _buildDetailStat('Deliveries', '${mistri.totalDeliveries}')),
-                    Expanded(child: _buildDetailStat('Completed', '${mistri.completedDeliveries}')),
+                    Expanded(
+                      child: _buildDetailStat(
+                        'Deliveries',
+                        '${mistri.totalDeliveries}',
+                      ),
+                    ),
+                    Expanded(
+                      child: _buildDetailStat(
+                        'Completed',
+                        '${mistri.completedDeliveries}',
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: AppSpacing.md),
                 Row(
                   children: [
-                    Expanded(child: _buildDetailStat('Success Rate', '${mistri.successRate.toStringAsFixed(1)}%')),
-                    Expanded(child: _buildDetailStat('Points', '${mistri.rewardPoints}')),
+                    Expanded(
+                      child: _buildDetailStat(
+                        'Success Rate',
+                        '${mistri.successRate.toStringAsFixed(1)}%',
+                      ),
+                    ),
+                    Expanded(
+                      child: _buildDetailStat(
+                        'Points',
+                        '${mistri.rewardPoints}',
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: AppSpacing.xxl),
                 // Actions
-                Row(
+                Column(
                   children: [
-                    Expanded(
+                    SizedBox(
+                      width: double.infinity,
                       child: TslSecondaryButton(
                         label: 'Call',
                         leadingIcon: Icons.call,
-                        onPressed: () => UrlLauncherService.launchPhone(mistri.phone),
+                        onPressed: () =>
+                            UrlLauncherService.launchPhone(mistri.phone),
                       ),
                     ),
-                    const SizedBox(width: AppSpacing.md),
-                    Expanded(
+                    const SizedBox(height: AppSpacing.md),
+                    SizedBox(
+                      width: double.infinity,
                       child: TslPrimaryButton(
                         label: 'Assign Delivery',
                         leadingIcon: Icons.assignment,
-                        onPressed: mistri.status == MistriStatus.active ? () {} : null,
+                        onPressed: mistri.status == MistriStatus.active
+                            ? () {}
+                            : null,
                       ),
                     ),
                   ],
@@ -966,4 +1168,3 @@ class _MistriDetailsSheet extends StatelessWidget {
     );
   }
 }
-

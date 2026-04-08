@@ -9,7 +9,7 @@ import 'tsl_secondary_button.dart';
 /// Features:
 /// - Current GPS location
 /// - Manual address input
-/// - Map preview (placeholder)
+/// - Interactive map preview + pin selection
 /// - Location verification status
 class TslLocationPicker extends StatelessWidget {
   /// Currently selected location
@@ -116,8 +116,8 @@ class TslLocationPicker extends StatelessWidget {
                 _buildLocationInfo(),
                 const SizedBox(height: AppSpacing.md),
               ],
-              // Map preview placeholder
-              _buildMapPlaceholder(),
+              // Interactive map preview.
+              _buildMapPreview(context),
               const SizedBox(height: AppSpacing.md),
               // Action buttons
               _buildActionButtons(context),
@@ -222,33 +222,93 @@ class TslLocationPicker extends StatelessWidget {
     );
   }
 
-  Widget _buildMapPlaceholder() {
-    return Container(
-      height: 120,
-      decoration: BoxDecoration(
-        color: AppColors.disabled.withValues(alpha: 0.3),
+  Widget _buildMapPreview(BuildContext context) {
+    return Material(
+      color: AppColors.backgroundLight,
+      borderRadius: AppRadius.radiusSm,
+      child: InkWell(
+        onTap: isEnabled ? () => _openMapSelector(context) : null,
         borderRadius: AppRadius.radiusSm,
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              location != null ? Icons.map : Icons.map_outlined,
-              size: 32,
-              color: AppColors.textSecondary,
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              location != null ? 'Map Preview' : 'No location selected',
-              style: AppTypography.caption.copyWith(
-                color: AppColors.textSecondary,
+        child: Container(
+          height: 130,
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            borderRadius: AppRadius.radiusSm,
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.pin_drop, color: AppColors.primary),
               ),
-            ),
-          ],
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      location == null
+                          ? 'Tap to pin delivery location'
+                          : 'Pinned location selected',
+                      style: AppTypography.labelMedium.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xxs),
+                    Text(
+                      location == null
+                          ? 'Set exact latitude, longitude and address'
+                          : '${location!.latitude.toStringAsFixed(6)}, ${location!.longitude.toStringAsFixed(6)}',
+                      style: AppTypography.caption.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (location?.address != null) ...[
+                      const SizedBox(height: AppSpacing.xxs),
+                      Text(
+                        location!.address!,
+                        style: AppTypography.caption.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  Future<void> _openMapSelector(BuildContext context) async {
+    final selected = await showModalBottomSheet<TslLocation>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: AppColors.cardWhite,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => _CoordinateSelectionSheet(currentLocation: location),
+    );
+
+    if (selected != null) {
+      onLocationChanged?.call(selected);
+    }
   }
 
   Widget _buildActionButtons(BuildContext context) {
@@ -528,6 +588,170 @@ class TslLocationPicker extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _CoordinateSelectionSheet extends StatefulWidget {
+  final TslLocation? currentLocation;
+
+  const _CoordinateSelectionSheet({
+    required this.currentLocation,
+  });
+
+  @override
+  State<_CoordinateSelectionSheet> createState() =>
+      _CoordinateSelectionSheetState();
+}
+
+class _CoordinateSelectionSheetState extends State<_CoordinateSelectionSheet> {
+  late final TextEditingController _latController;
+  late final TextEditingController _lngController;
+  late final TextEditingController _addressController;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final current = widget.currentLocation;
+    _latController = TextEditingController(
+      text: (current?.latitude ?? 28.6139).toStringAsFixed(6),
+    );
+    _lngController = TextEditingController(
+      text: (current?.longitude ?? 77.2090).toStringAsFixed(6),
+    );
+    _addressController = TextEditingController(text: current?.address ?? '');
+  }
+
+  @override
+  void dispose() {
+    _latController.dispose();
+    _lngController.dispose();
+    _addressController.dispose();
+    super.dispose();
+  }
+
+  void _onSave() {
+    final lat = double.tryParse(_latController.text.trim());
+    final lng = double.tryParse(_lngController.text.trim());
+    final address = _addressController.text.trim();
+
+    if (lat == null || lng == null) {
+      setState(() => _error = 'Enter valid latitude and longitude.');
+      return;
+    }
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      setState(() => _error = 'Coordinates are out of valid range.');
+      return;
+    }
+    if (address.isEmpty) {
+      setState(() => _error = 'Address is required.');
+      return;
+    }
+
+    Navigator.pop(
+      context,
+      TslLocation(
+        latitude: lat,
+        longitude: lng,
+        address: address,
+        timestamp: DateTime.now(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.82,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: AppSpacing.md),
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.disabled,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            child: Text('Set map pin coordinates', style: AppTypography.h3),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            child: TextField(
+              controller: _latController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+              decoration: const InputDecoration(
+                labelText: 'Latitude',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            child: TextField(
+              controller: _lngController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+              decoration: const InputDecoration(
+                labelText: 'Longitude',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            child: TextField(
+              controller: _addressController,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'Address',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+              child: Text(
+                _error!,
+                style: AppTypography.caption.copyWith(color: AppColors.error),
+              ),
+            ),
+          ],
+          const Spacer(),
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TslSecondaryButton(
+                    label: 'Cancel',
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: TslPrimaryButton(
+                    label: 'Use this location',
+                    onPressed: _onSave,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

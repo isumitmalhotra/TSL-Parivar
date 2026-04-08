@@ -57,7 +57,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     }
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: CustomScrollView(
         controller: _scrollController,
         slivers: [

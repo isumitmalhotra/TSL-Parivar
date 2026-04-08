@@ -76,6 +76,17 @@ void main() async {
         // Core providers
         ChangeNotifierProvider<LanguageProvider>.value(value: languageProvider),
         ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+        ChangeNotifierProxyProvider<AuthProvider, AppSettingsProvider>(
+          create: (_) => AppSettingsProvider(),
+          update: (_, authProvider, appSettingsProvider) {
+            final provider = appSettingsProvider ?? AppSettingsProvider();
+            unawaited(provider.syncAuthState(
+              isAuthenticated: authProvider.isAuthenticated,
+              userId: authProvider.userId,
+            ));
+            return provider;
+          },
+        ),
 
         // Data providers - created lazily
         ChangeNotifierProxyProvider<AuthProvider, UserProvider>(
@@ -86,13 +97,17 @@ void main() async {
             if (authProvider.isAuthenticated &&
                 authProvider.userId != null &&
                 authProvider.userRole != null) {
-              unawaited(
-                provider.loadUserData(
-                  authProvider.userId!,
-                  authProvider.userRole!,
-                  phoneNumber: authProvider.phoneNumber,
-                ),
-              );
+              final shouldLoad = !provider.isLoading &&
+                  provider.currentUser?.id != authProvider.userId;
+              if (shouldLoad) {
+                unawaited(
+                  provider.loadUserData(
+                    authProvider.userId!,
+                    authProvider.userRole!,
+                    phoneNumber: authProvider.phoneNumber,
+                  ),
+                );
+              }
             } else {
               provider.clearUserData();
             }
@@ -101,7 +116,30 @@ void main() async {
           },
         ),
         ChangeNotifierProvider<DeliveryProvider>(create: (_) => DeliveryProvider()),
-        ChangeNotifierProvider<RewardsProvider>(create: (_) => RewardsProvider()),
+        ChangeNotifierProxyProvider<AuthProvider, RewardsProvider>(
+          create: (_) => RewardsProvider(),
+          update: (_, authProvider, rewardsProvider) {
+            final provider = rewardsProvider ?? RewardsProvider();
+            if (authProvider.isAuthenticated && authProvider.userId != null) {
+              unawaited(provider.loadRewards(userId: authProvider.userId));
+            } else {
+              provider.clearData();
+            }
+            return provider;
+          },
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, DealerDataProvider>(
+          create: (_) => DealerDataProvider(),
+          update: (_, authProvider, dealerDataProvider) {
+            final provider = dealerDataProvider ?? DealerDataProvider();
+            unawaited(provider.syncAuthState(
+              isAuthenticated: authProvider.isAuthenticated,
+              role: authProvider.userRole,
+              userId: authProvider.userId,
+            ));
+            return provider;
+          },
+        ),
         ChangeNotifierProxyProvider<AuthProvider, NotificationProvider>(
           create: (_) => NotificationProvider(),
           update: (_, authProvider, notificationProvider) {

@@ -3,11 +3,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../design_system/design_system.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/shared_models.dart';
+import '../../navigation/app_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/user_provider.dart';
 import '../../services/firestore_service.dart';
@@ -129,7 +131,7 @@ class _ChatContactsScreenState extends State<ChatContactsScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) {
           return [
@@ -374,12 +376,7 @@ class _ChatContactsScreenState extends State<ChatContactsScreen>
   }
 
   void _openChat(ChatContact contact) {
-    Navigator.push(
-      context,
-      MaterialPageRoute<void>(
-        builder: (context) => ChatScreen(contact: contact),
-      ),
-    );
+    context.push(AppRoutes.chatWithId(contact.id), extra: contact);
   }
 
   void _showNewChatSheet() {
@@ -391,7 +388,7 @@ class _ChatContactsScreenState extends State<ChatContactsScreen>
 
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: AppColors.cardWhite,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -917,7 +914,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: _buildAppBar(),
       body: Column(
         children: [
@@ -1242,7 +1239,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   void _showOptionsSheet() {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: AppColors.cardWhite,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -1283,7 +1280,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   void _showAttachmentOptions() {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: AppColors.cardWhite,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),

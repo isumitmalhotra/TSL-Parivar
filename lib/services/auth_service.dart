@@ -19,7 +19,7 @@ class AuthService {
   /// Send OTP to phone number
   static Future<void> sendOTP({
     required String phoneNumber,
-    required void Function(String verificationId) onCodeSent,
+    required void Function(String verificationId, int? resendToken) onCodeSent,
     required void Function(String error) onError,
     required void Function(PhoneAuthCredential credential) onAutoVerify,
     int? resendToken,
@@ -35,11 +35,11 @@ class AuthService {
         },
         verificationFailed: (FirebaseAuthException e) {
           debugPrint('❌ Phone verification failed: ${e.message}');
-          onError(e.message ?? 'Verification failed');
+          onError('${e.code}:${e.message ?? 'Verification failed'}');
         },
         codeSent: (String verificationId, int? resendToken) {
           debugPrint('✅ OTP sent to $phoneNumber');
-          onCodeSent(verificationId);
+          onCodeSent(verificationId, resendToken);
         },
         codeAutoRetrievalTimeout: (String verificationId) {
           debugPrint('⏰ Auto retrieval timeout');

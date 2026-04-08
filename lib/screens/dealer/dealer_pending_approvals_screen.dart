@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../design_system/design_system.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/dealer_models.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/dealer_data_provider.dart';
+import '../../services/firestore_service.dart';
 import '../../widgets/widgets.dart';
 
 /// Dealer Pending Approvals Screen (CRITICAL)
@@ -24,7 +28,10 @@ class DealerPendingApprovalsScreen extends StatefulWidget {
 
 class _DealerPendingApprovalsScreenState
     extends State<DealerPendingApprovalsScreen> {
-  final List<PodSubmissionModel> _submissions = MockDealerData.mockPodSubmissions; // Loaded from Firestore in production
+  bool _isSubmittingDecision = false;
+
+  List<PodSubmissionModel> get _submissions =>
+      context.watch<DealerDataProvider>().pendingSubmissions;
 
   @override
   Widget build(BuildContext context) {
@@ -110,14 +117,10 @@ class _DealerPendingApprovalsScreenState
     );
   }
 
-  void _handleApprove(PodSubmissionModel submission) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Approved! ${submission.totalPoints} points transferred to ${submission.mistriName}',
-        ),
-        backgroundColor: AppColors.success,
-      ),
+  Future<void> _handleApprove(PodSubmissionModel submission) async {
+    await _submitPodDecision(
+      submission: submission,
+      status: PodApprovalStatus.approved,
     );
   }
 
@@ -128,17 +131,98 @@ class _DealerPendingApprovalsScreenState
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (context) => _RejectPodSheet(submission: submission),
+      builder: (context) => _RejectPodSheet(
+        submission: submission,
+        onSubmit: (reason) {
+          _submitPodDecision(
+            submission: submission,
+            status: PodApprovalStatus.rejected,
+            reason: reason,
+          );
+        },
+      ),
     );
   }
 
-  void _handleRequestInfo(PodSubmissionModel submission) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Requested more info from ${submission.mistriName}'),
-        backgroundColor: AppColors.info,
-      ),
+  Future<void> _handleRequestInfo(PodSubmissionModel submission) async {
+    await _submitPodDecision(
+      submission: submission,
+      status: PodApprovalStatus.needsInfo,
+      reason: 'Requested more information',
     );
+  }
+
+  Future<void> _submitPodDecision({
+    required PodSubmissionModel submission,
+    required PodApprovalStatus status,
+    String? reason,
+  }) async {
+    if (_isSubmittingDecision) return;
+    setState(() => _isSubmittingDecision = true);
+
+    final auth = context.read<AuthProvider>();
+    final dealerId = auth.userId ?? 'unknown_dealer';
+
+    try {
+      await FirestoreService.recordPodDecision(
+        deliveryId: submission.deliveryId,
+        dealerId: dealerId,
+        decision: _toPodStatusKey(status),
+        reason: reason,
+        mistriId: submission.mistriId,
+        approvedPoints: status == PodApprovalStatus.approved
+            ? submission.totalPoints
+            : null,
+      );
+
+
+      if (!mounted) return;
+      setState(() => _isSubmittingDecision = false);
+
+      final message = switch (status) {
+        PodApprovalStatus.approved =>
+          'Approved! ${submission.totalPoints} points transferred to ${submission.mistriName}',
+        PodApprovalStatus.rejected => 'POD rejected',
+        PodApprovalStatus.needsInfo => 'Requested more info from ${submission.mistriName}',
+        PodApprovalStatus.pending => 'POD updated',
+      };
+
+      final color = switch (status) {
+        PodApprovalStatus.approved => AppColors.success,
+        PodApprovalStatus.rejected => AppColors.error,
+        PodApprovalStatus.needsInfo => AppColors.info,
+        PodApprovalStatus.pending => AppColors.primary,
+      };
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: color,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isSubmittingDecision = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to update POD decision. Please try again.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  String _toPodStatusKey(PodApprovalStatus status) {
+    switch (status) {
+      case PodApprovalStatus.pending:
+        return 'pending';
+      case PodApprovalStatus.approved:
+        return 'approved';
+      case PodApprovalStatus.rejected:
+        return 'rejected';
+      case PodApprovalStatus.needsInfo:
+        return 'needsInfo';
+    }
   }
 }
 
@@ -1228,8 +1312,12 @@ class _PodApprovalDetailSheetState extends State<_PodApprovalDetailSheet> {
 /// Reject POD sheet
 class _RejectPodSheet extends StatefulWidget {
   final PodSubmissionModel submission;
+  final void Function(String reason) onSubmit;
 
-  const _RejectPodSheet({required this.submission});
+  const _RejectPodSheet({
+    required this.submission,
+    required this.onSubmit,
+  });
 
   @override
   State<_RejectPodSheet> createState() => _RejectPodSheetState();
@@ -1303,13 +1391,10 @@ class _RejectPodSheetState extends State<_RejectPodSheet> {
                 child: ElevatedButton(
                   onPressed: _selectedReason != null
                       ? () {
+                          final reason = _selectedReason;
+                          if (reason == null) return;
                           Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('POD rejected'),
-                              backgroundColor: AppColors.error,
-                            ),
-                          );
+                          widget.onSubmit(reason);
                         }
                       : null,
                   style: ElevatedButton.styleFrom(

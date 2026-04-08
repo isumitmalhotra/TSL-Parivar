@@ -53,7 +53,7 @@ class DefaultFirebaseOptions {
   // iOS configuration from GoogleService-Info.plist (com.tslsteel.parivar)
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyBkLrX708PF89TONRID6emWaI76HMJwXfE',
-    appId: '1:868208183306:ios:acbf4a9978d91a977737f3',
+    appId: '1:868208183306:ios:2d3967b634bf02767737f3',
     messagingSenderId: '868208183306',
     projectId: 'tsl-parivar',
     storageBucket: 'tsl-parivar.firebasestorage.app',

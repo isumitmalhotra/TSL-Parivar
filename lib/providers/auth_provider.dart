@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/shared_models.dart';
+import '../services/biometric_service.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../services/messaging_service.dart';
@@ -33,12 +36,13 @@ class AuthProvider extends ChangeNotifier {
   String? _errorMessage;
   bool _hasSeenOnboarding = false;
   bool _isInitialized = false;
+  final BiometricService _biometricService = BiometricService();
 
   // Firebase Auth specific
   String? _verificationId;
   int? _resendToken;
-  PhoneAuthCredential? _autoVerifiedCredential;
   String? _otpFlowId;
+  DateTime? _nextOtpAllowedAt;
 
   // Getters
   AuthState get authState => _authState;
@@ -52,6 +56,15 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoading =>
       _authState == AuthState.authenticating ||
       _authState == AuthState.verifyingOtp;
+  int get otpCooldownSecondsRemaining {
+    final next = _nextOtpAllowedAt;
+    if (next == null) return 0;
+    final diff = next.difference(DateTime.now());
+    if (diff.isNegative) return 0;
+    return diff.inSeconds + 1;
+  }
+
+  bool get isOtpCooldownActive => otpCooldownSecondsRemaining > 0;
 
   /// Initialize the auth provider
   Future<void> initialize() async {
@@ -76,26 +89,43 @@ class AuthProvider extends ChangeNotifier {
           _userRole = UserRoleExtension.fromKey(roleKey);
           _authState = AuthState.authenticated;
         } else {
-          // User authenticated but no role selected - need to complete registration
+          // Attempt to recover role from Firestore for existing users.
+          final roleFromFirestore = await _loadRoleFromFirestore(firebaseUser.uid);
+          if (roleFromFirestore != null) {
+            _userRole = roleFromFirestore;
+            await prefs.setString(_userRoleKey, roleFromFirestore.key);
+          }
           _authState = AuthState.authenticated;
         }
-      } else {
-        // Check SharedPreferences for local state (fallback)
-        final isLoggedIn = prefs.getBool(_isLoggedInKey) ?? false;
-        if (isLoggedIn) {
-          final roleKey = prefs.getString(_userRoleKey);
-          _userId = prefs.getString(_userIdKey);
-          _phoneNumber = prefs.getString(_phoneNumberKey);
 
-          if (roleKey != null) {
-            _userRole = UserRoleExtension.fromKey(roleKey);
-            _authState = AuthState.authenticated;
-          } else {
+        final biometricEnabled = _isBiometricEnabledForUser(
+          prefs,
+          firebaseUser.uid,
+        );
+        if (biometricEnabled) {
+          final unlocked = await _biometricService.authenticate();
+          if (!unlocked) {
+            await AuthService.signOut();
             _authState = AuthState.unauthenticated;
+            _userRole = null;
+            _userId = null;
+            _phoneNumber = null;
+            await prefs.remove(_isLoggedInKey);
+            await prefs.remove(_userRoleKey);
+            await prefs.remove(_userIdKey);
+            await prefs.remove(_phoneNumberKey);
           }
-        } else {
-          _authState = AuthState.unauthenticated;
         }
+      } else {
+        // Firebase user is source of truth. Clear stale local auth cache.
+        _authState = AuthState.unauthenticated;
+        _userRole = null;
+        _userId = null;
+        _phoneNumber = null;
+        await prefs.remove(_isLoggedInKey);
+        await prefs.remove(_userRoleKey);
+        await prefs.remove(_userIdKey);
+        await prefs.remove(_phoneNumberKey);
       }
 
       _isInitialized = true;
@@ -107,6 +137,18 @@ class AuthProvider extends ChangeNotifier {
       _isInitialized = true;
       notifyListeners();
     }
+  }
+
+  bool _isBiometricEnabledForUser(SharedPreferences prefs, String uid) {
+    final raw = prefs.getString('app_settings_v1_$uid');
+    if (raw == null || raw.isEmpty) {
+      return false;
+    }
+    final parts = raw.split('|');
+    if (parts.length != 6) {
+      return false;
+    }
+    return parts[5] == '1';
   }
 
   /// Mark onboarding as seen
@@ -129,6 +171,13 @@ class AuthProvider extends ChangeNotifier {
 
   /// Send OTP to phone number using Firebase Auth
   Future<bool> sendOtp(String phoneNumber) async {
+    if (isOtpCooldownActive) {
+      _authState = AuthState.error;
+      _errorMessage = 'Please wait $otpCooldownSecondsRemaining seconds before retrying OTP.';
+      notifyListeners();
+      return false;
+    }
+
     _otpFlowId = 'otp_${DateTime.now().millisecondsSinceEpoch}';
     _authState = AuthState.authenticating;
     _errorMessage = null;
@@ -136,35 +185,59 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Ensure phone number has country code
-      final formattedPhone = phoneNumber.startsWith('+') 
-          ? phoneNumber 
-          : '+91$phoneNumber';
+      // Normalize to E.164-like format for Firebase Phone Auth.
+      final digitsOnly = phoneNumber.replaceAll(RegExp('[^0-9+]'), '');
+      final formattedPhone = digitsOnly.startsWith('+')
+          ? digitsOnly
+          : '+91$digitsOnly';
+
+      final completer = Completer<bool>();
       
       await AuthService.sendOTP(
         phoneNumber: formattedPhone,
         resendToken: _resendToken,
-        onCodeSent: (String verificationId) {
+        onCodeSent: (String verificationId, int? resendToken) {
           _verificationId = verificationId;
+          _resendToken = resendToken;
+          _nextOtpAllowedAt = null;
           _authState = AuthState.otpSent;
           debugPrint('🧪[OTP:${_otpFlowId}] codeSent phone=$formattedPhone');
           notifyListeners();
+          if (!completer.isCompleted) {
+            completer.complete(true);
+          }
         },
         onError: (String error) {
           _authState = AuthState.error;
           _errorMessage = _getReadableErrorMessage(error);
+          _applyCooldownForError(error);
           debugPrint('❌ OTP send error: $error');
           notifyListeners();
+          if (!completer.isCompleted) {
+            completer.complete(false);
+          }
         },
         onAutoVerify: (PhoneAuthCredential credential) async {
           // Auto-verification on Android (when SMS is auto-detected)
-          _autoVerifiedCredential = credential;
           debugPrint('🧪[OTP:${_otpFlowId}] autoVerify triggered');
           await _signInWithCredential(credential);
+          if (!completer.isCompleted) {
+            completer.complete(true);
+          }
         },
       );
-      
-      return true;
+
+      return completer.future.timeout(
+        const Duration(seconds: 35),
+        onTimeout: () {
+          _authState = AuthState.error;
+          _errorMessage =
+              'OTP was not sent. Please retry in 30 seconds or check Firebase phone auth settings.';
+          _setOtpCooldown(const Duration(seconds: 30));
+          notifyListeners();
+          return false;
+        },
+      );
     } catch (e) {
       _authState = AuthState.error;
       _errorMessage = 'Failed to send OTP. Please try again.';
@@ -182,6 +255,12 @@ class AuthProvider extends ChangeNotifier {
       return 'Too many attempts. Please try again later.';
     } else if (error.contains('quota-exceeded')) {
       return 'SMS quota exceeded. Please try again later.';
+    } else if (error.contains('captcha-check-failed')) {
+      return 'Human verification failed. Please retry and complete the browser check.';
+    } else if (error.contains('missing-client-identifier')) {
+      return 'App verification failed. Install from Play Internal/Production build and try again.';
+    } else if (error.contains('invalid-app-credential') || error.contains('app-not-authorized')) {
+      return 'This app build is not authorized for OTP yet. Please update the app and try again.';
     } else if (error.contains('network-request-failed')) {
       return 'Network error. Please check your internet connection.';
     } else if (error.contains('invalid-verification-code')) {
@@ -190,6 +269,24 @@ class AuthProvider extends ChangeNotifier {
       return 'OTP expired. Please request a new one.';
     }
     return error;
+  }
+
+  void _setOtpCooldown(Duration duration) {
+    _nextOtpAllowedAt = DateTime.now().add(duration);
+  }
+
+  void _applyCooldownForError(String error) {
+    if (error.contains('too-many-requests') || error.contains('quota-exceeded')) {
+      _setOtpCooldown(const Duration(minutes: 2));
+      return;
+    }
+    if (error.contains('missing-client-identifier') ||
+        error.contains('invalid-app-credential') ||
+        error.contains('captcha-check-failed')) {
+      _setOtpCooldown(const Duration(seconds: 45));
+      return;
+    }
+    _setOtpCooldown(const Duration(seconds: 20));
   }
 
   /// Verify OTP using Firebase Auth
@@ -226,6 +323,7 @@ class AuthProvider extends ChangeNotifier {
         await MessagingService.saveTokenForUser(_userId!);
 
         _authState = AuthState.authenticated;
+        _nextOtpAllowedAt = null;
         debugPrint('✅[OTP:${_otpFlowId}] verified uid=$_userId');
         notifyListeners();
         return true;
@@ -302,20 +400,45 @@ class AuthProvider extends ChangeNotifier {
         );
         debugPrint('✅ New user created in Firestore');
       } else {
+        final existingData = userDoc.data() ?? const <String, dynamic>{};
+        final existingRole = existingData['role'] as String?;
+
         // Existing user - update last login
         await FirestoreService.updateDocument(
           collection: FirestoreService.usersCollection,
           documentId: user.uid,
           data: {
             'lastLoginAt': DateTime.now().toIso8601String(),
-            if (_userRole != null) 'role': _userRole!.key,
+            if (existingRole == null && _userRole != null) 'role': _userRole!.key,
           },
         );
+
+        if (_userRole == null && existingRole != null) {
+          _userRole = UserRoleExtension.fromKey(existingRole);
+        }
         debugPrint('✅ User last login updated in Firestore');
       }
     } catch (e) {
       debugPrint('⚠️ Firestore user update error (non-fatal): $e');
       // Don't fail auth if Firestore update fails
+    }
+  }
+
+  Future<UserRole?> _loadRoleFromFirestore(String uid) async {
+    try {
+      final userDoc = await FirestoreService.getDocument(
+        collection: FirestoreService.usersCollection,
+        documentId: uid,
+      );
+      final data = userDoc.data();
+      final roleKey = data?['role'] as String?;
+      if (roleKey == null || roleKey.isEmpty) {
+        return null;
+      }
+      return UserRoleExtension.fromKey(roleKey);
+    } catch (e) {
+      debugPrint('⚠️ Unable to load role from Firestore: $e');
+      return null;
     }
   }
 
@@ -366,7 +489,6 @@ class AuthProvider extends ChangeNotifier {
       _errorMessage = null;
       _verificationId = null;
       _resendToken = null;
-      _autoVerifiedCredential = null;
       
       debugPrint('✅[AUTH] logout completed');
       notifyListeners();

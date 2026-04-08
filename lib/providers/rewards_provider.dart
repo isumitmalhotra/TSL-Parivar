@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/mistri_models.dart';
+import '../services/firestore_service.dart';
 
 /// Reward filter options
 enum RewardFilter {
@@ -86,25 +88,127 @@ class RewardsProvider extends ChangeNotifier {
     return 'Earlier';
   }
 
-  /// Load rewards data
-  Future<void> loadRewards() async {
+  /// Load rewards data from Firestore for the authenticated user.
+  Future<void> loadRewards({String? userId}) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      // Simulate API call
-      await Future<void>.delayed(const Duration(milliseconds: 800));
+      if (userId == null || userId.isEmpty) {
+        clearData();
+        return;
+      }
 
-      // Load mock data
-      _loadMockData();
+      final rewardsDoc = await FirestoreService.rewardsCollection.doc(userId).get();
+      final historySnapshot = await FirestoreService.rewardsCollection
+          .doc(userId)
+          .collection('history')
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      _transactions = historySnapshot.docs
+          .map((doc) => _mapHistoryTransaction(doc.id, doc.data()))
+          .toList();
+
+      if (rewardsDoc.exists && rewardsDoc.data() != null) {
+        final data = rewardsDoc.data()!;
+        _approvedPoints = (data['approvedPoints'] as int?) ?? (data['points'] as int?) ?? 0;
+        _pendingPoints = (data['pendingPoints'] as int?) ?? 0;
+        _redeemedPoints = (data['redeemedPoints'] as int?) ?? 0;
+        _bonusPoints = (data['bonusPoints'] as int?) ?? 0;
+      } else {
+        _rebuildSummaryFromTransactions();
+      }
+
+      _updateRank();
 
       _isLoading = false;
       notifyListeners();
     } catch (e) {
       _isLoading = false;
       _errorMessage = 'Failed to load rewards';
+      _transactions = [];
+      _approvedPoints = 0;
+      _pendingPoints = 0;
+      _redeemedPoints = 0;
+      _bonusPoints = 0;
       notifyListeners();
+    }
+  }
+
+  RewardTransaction _mapHistoryTransaction(String id, Map<String, dynamic> data) {
+    final int points = (data['points'] as int?) ?? 0;
+    return RewardTransaction(
+      id: id,
+      title: (data['title'] as String?) ?? (data['reason'] as String?) ?? 'Reward Update',
+      description: (data['description'] as String?) ?? (data['reason'] as String?) ?? '',
+      points: points,
+      date: _parseDateTime(data['createdAt']) ?? DateTime.now(),
+      type: _resolveRewardType(data: data, points: points),
+      deliveryId: data['deliveryId'] as String?,
+    );
+  }
+
+  RewardType _resolveRewardType({required Map<String, dynamic> data, required int points}) {
+    final rawType = data['type'] as String?;
+    switch (rawType) {
+      case 'redeemed':
+        return RewardType.redeemed;
+      case 'pending':
+        return RewardType.pending;
+      case 'bonus':
+        return RewardType.bonus;
+      case 'earned':
+        return RewardType.earned;
+    }
+
+    if (points < 0) {
+      return RewardType.redeemed;
+    }
+
+    final isPending = (data['isPending'] as bool?) ?? false;
+    if (isPending) {
+      return RewardType.pending;
+    }
+
+    return RewardType.earned;
+  }
+
+  DateTime? _parseDateTime(dynamic rawValue) {
+    if (rawValue is Timestamp) {
+      return rawValue.toDate();
+    }
+    if (rawValue is DateTime) {
+      return rawValue;
+    }
+    if (rawValue is String) {
+      return DateTime.tryParse(rawValue);
+    }
+    return null;
+  }
+
+  void _rebuildSummaryFromTransactions() {
+    _approvedPoints = 0;
+    _pendingPoints = 0;
+    _redeemedPoints = 0;
+    _bonusPoints = 0;
+
+    for (final transaction in _transactions) {
+      switch (transaction.type) {
+        case RewardType.earned:
+          _approvedPoints += transaction.points > 0 ? transaction.points : 0;
+          break;
+        case RewardType.pending:
+          _pendingPoints += transaction.points > 0 ? transaction.points : 0;
+          break;
+        case RewardType.redeemed:
+          _redeemedPoints += transaction.points.abs();
+          break;
+        case RewardType.bonus:
+          _bonusPoints += transaction.points > 0 ? transaction.points : 0;
+          break;
+      }
     }
   }
 
@@ -207,6 +311,7 @@ class RewardsProvider extends ChangeNotifier {
   void clearData() {
     _transactions = [];
     _currentFilter = RewardFilter.all;
+    _isLoading = false;
     _approvedPoints = 0;
     _pendingPoints = 0;
     _redeemedPoints = 0;
@@ -217,87 +322,5 @@ class RewardsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Load mock data
-  void _loadMockData() {
-    final now = DateTime.now();
-
-    _approvedPoints = 2450;
-    _pendingPoints = 150;
-    _redeemedPoints = 500;
-    _bonusPoints = 200;
-    _currentRank = 'Gold';
-    _badgeIcon = '🥇';
-
-    _transactions = [
-      RewardTransaction(
-        id: 'TXN001',
-        title: 'Delivery Completed',
-        description: 'TMT Bars delivered to Mehta & Sons',
-        points: 75,
-        date: now.subtract(const Duration(hours: 2)),
-        type: RewardType.earned,
-        deliveryId: 'DEL004',
-      ),
-      RewardTransaction(
-        id: 'TXN002',
-        title: 'Pending Approval',
-        description: 'Cement delivery awaiting approval',
-        points: 25,
-        date: now.subtract(const Duration(hours: 5)),
-        type: RewardType.pending,
-        deliveryId: 'DEL003',
-      ),
-      RewardTransaction(
-        id: 'TXN003',
-        title: 'Weekly Bonus',
-        description: '100% delivery success this week',
-        points: 50,
-        date: now.subtract(const Duration(days: 1)),
-        type: RewardType.bonus,
-      ),
-      RewardTransaction(
-        id: 'TXN004',
-        title: 'Points Redeemed',
-        description: 'Amazon Gift Card ₹500',
-        points: -500,
-        date: now.subtract(const Duration(days: 2)),
-        type: RewardType.redeemed,
-      ),
-      RewardTransaction(
-        id: 'TXN005',
-        title: 'Delivery Completed',
-        description: 'Steel Rods delivered to Priya Builders',
-        points: 35,
-        date: now.subtract(const Duration(days: 3)),
-        type: RewardType.earned,
-        deliveryId: 'DEL002',
-      ),
-      RewardTransaction(
-        id: 'TXN006',
-        title: 'Delivery Completed',
-        description: 'TMT Bars delivered to Amit Singh',
-        points: 50,
-        date: now.subtract(const Duration(days: 4)),
-        type: RewardType.earned,
-        deliveryId: 'DEL001',
-      ),
-      RewardTransaction(
-        id: 'TXN007',
-        title: 'Monthly Bonus',
-        description: 'Top performer of December',
-        points: 150,
-        date: now.subtract(const Duration(days: 7)),
-        type: RewardType.bonus,
-      ),
-      RewardTransaction(
-        id: 'TXN008',
-        title: 'Delivery Completed',
-        description: 'Steel Angles delivered to Apex Builders',
-        points: 40,
-        date: now.subtract(const Duration(days: 10)),
-        type: RewardType.earned,
-      ),
-    ];
-  }
 }
 

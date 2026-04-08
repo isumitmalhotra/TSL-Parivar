@@ -137,6 +137,29 @@ class DealerMistriModel {
   });
 }
 
+/// Nearby registered mistri discoverable by a dealer.
+class NearbyMistriModel {
+  final String id;
+  final String name;
+  final String phone;
+  final String specialization;
+  final String city;
+  final String? addressLine;
+  final String? existingDealerId;
+  final bool isActive;
+
+  const NearbyMistriModel({
+    required this.id,
+    required this.name,
+    required this.phone,
+    required this.specialization,
+    required this.city,
+    this.addressLine,
+    this.existingDealerId,
+    required this.isActive,
+  });
+}
+
 /// Order request model
 class OrderRequestModel {
   final String id;

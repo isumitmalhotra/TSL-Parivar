@@ -42,6 +42,17 @@ class _DealerShellScreenState extends State<DealerShellScreen> {
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(covariant DealerShellScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialIndex != widget.initialIndex &&
+        widget.initialIndex != _currentIndex) {
+      _currentIndex = widget.initialIndex;
+      _pageController.jumpToPage(_currentIndex);
+      setState(() {});
+    }
+  }
+
   void _onTabChanged(int index) {
     if (index == 3) {
       context.push(AppRoutes.profileForRole(UserRole.dealer));

@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../design_system/design_system.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/shared_models.dart';
+import '../../navigation/app_router.dart';
 import '../../providers/notification_provider.dart';
 import '../../widgets/widgets.dart';
 
@@ -131,53 +132,71 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen>
   /// Navigate to the screen indicated by the deep link path
   void _navigateToDeepLink(String deepLink) {
     try {
-      // Deep link format examples:
-      // /mistri/deliveries/del_001 -> delivery details
-      // /mistri/rewards -> rewards tab
-      // /dealer/orders -> orders tab
-      // /chat/dealer_001 -> chat screen
-
-      final segments = deepLink.split('/').where((s) => s.isNotEmpty).toList();
+      final normalized = deepLink.trim();
+      final segments = normalized.split('/').where((s) => s.isNotEmpty).toList();
 
       if (segments.isEmpty) return;
 
       switch (segments[0]) {
+        case 'delivery':
+          if (segments.length >= 2) {
+            context.push('/mistri/deliveries/${segments[1]}');
+          } else {
+            context.go('${AppRoutes.mistriHome}?tab=deliveries');
+          }
+          break;
+        case 'orders':
+          context.go('${AppRoutes.dealerHome}?tab=orders');
+          break;
+        case 'messages':
+          if (segments.length >= 2) {
+            context.push(AppRoutes.chatWithId(segments[1]));
+          } else {
+            context.push('/chat-contacts');
+          }
+          break;
+        case 'rewards':
+          context.go('${AppRoutes.mistriHome}?tab=rewards');
+          break;
         case 'mistri':
           if (segments.length >= 3 && segments[1] == 'deliveries') {
-            // Navigate to specific delivery details
             context.push('/mistri/deliveries/${segments[2]}');
           } else if (segments.length >= 2 && segments[1] == 'rewards') {
-            context.go('/mistri');
-            // Switch to rewards tab (index 2)
+            context.go('${AppRoutes.mistriHome}?tab=rewards');
+          } else if (segments.length >= 2 && segments[1] == 'deliveries') {
+            context.go('${AppRoutes.mistriHome}?tab=deliveries');
           } else {
-            context.go('/mistri');
+            context.go(AppRoutes.mistriHome);
           }
           break;
         case 'dealer':
           if (segments.length >= 2 && segments[1] == 'orders') {
-            context.go('/dealer');
-            // Switch to orders tab (index 1)
+            context.go('${AppRoutes.dealerHome}?tab=orders');
           } else if (segments.length >= 2 && segments[1] == 'pending-approvals') {
             context.push('/dealer/pending-approvals');
+          } else if (segments.length >= 2 && segments[1] == 'mistris') {
+            context.go('${AppRoutes.dealerHome}?tab=mistris');
           } else {
-            context.go('/dealer');
+            context.go(AppRoutes.dealerHome);
           }
           break;
         case 'architect':
           if (segments.length >= 2 && segments[1] == 'projects') {
-            context.go('/architect');
-            // Switch to projects tab (index 1)
+            context.go('${AppRoutes.architectHome}?tab=projects');
+          } else if (segments.length >= 2 && segments[1] == 'rewards') {
+            context.go('${AppRoutes.architectHome}?tab=rewards');
           } else {
-            context.go('/architect');
+            context.go(AppRoutes.architectHome);
           }
           break;
         case 'chat':
           if (segments.length >= 2) {
+            context.push(AppRoutes.chatWithId(segments[1]));
+          } else {
             context.push('/chat-contacts');
           }
           break;
         default:
-          // Unknown deep link - just pop back
           debugPrint('Unknown deep link: $deepLink');
       }
     } catch (e) {
@@ -228,7 +247,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) {
           return [
@@ -618,7 +637,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen>
     // Show notification detail dialog
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: AppColors.cardWhite,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -679,7 +698,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen>
   void _showSettingsSheet() {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: AppColors.cardWhite,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),

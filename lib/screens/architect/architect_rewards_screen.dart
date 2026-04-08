@@ -1,10 +1,12 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../design_system/design_system.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/architect_models.dart';
+import '../../providers/user_provider.dart' show UserProvider;
 import '../../widgets/widgets.dart';
 
 /// Architect Rewards Screen
@@ -26,9 +28,22 @@ class _ArchitectRewardsScreenState extends State<ArchitectRewardsScreen>
   late TabController _tabController;
   late AnimationController _floatController;
 
-  final ArchitectUser _user = MockArchitectData.mockUser; // Loaded from UserProvider in production
-  final List<ArchitectRewardTransaction> _transactions =
-      MockArchitectData.mockRewardTransactions; // Loaded from Firestore in production
+  final List<ArchitectRewardTransaction> _transactions = [];
+
+  ArchitectUser get _user {
+    final profile = context.watch<UserProvider>().currentUser;
+    return ArchitectUser(
+      id: profile?.id ?? '',
+      name: profile?.name ?? 'Architect',
+      licenseNo: '',
+      phone: profile?.phone ?? '',
+      imageUrl: profile?.imageUrl,
+      activeProjects: 0,
+      totalSpecifications: 0,
+      rewardPoints: 0,
+      connectedDealers: 0,
+    );
+  }
 
   @override
   void initState() {

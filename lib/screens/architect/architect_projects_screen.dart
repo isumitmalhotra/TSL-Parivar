@@ -24,7 +24,7 @@ class ArchitectProjectsScreen extends StatefulWidget {
 class _ArchitectProjectsScreenState extends State<ArchitectProjectsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final List<ArchitectProject> _projects = MockArchitectData.mockProjects; // Loaded from Firestore in production
+  final List<ArchitectProject> _projects = [];
   final TextEditingController _searchController = TextEditingController();
   final Debouncer _searchDebouncer = Debouncer();
   String _searchQuery = '';

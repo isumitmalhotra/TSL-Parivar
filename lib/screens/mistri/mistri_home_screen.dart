@@ -8,9 +8,11 @@ import '../../design_system/design_system.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/mistri_models.dart';
 import '../../models/shared_models.dart';
+import '../../navigation/app_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/user_provider.dart';
 import '../../providers/delivery_provider.dart';
+import '../../services/firestore_service.dart';
 import '../../services/url_launcher_service.dart';
 import '../../widgets/widgets.dart';
 
@@ -34,8 +36,33 @@ class _MistriHomeScreenState extends State<MistriHomeScreen>
   late AnimationController _floatController;
   late ScrollController _scrollController;
 
-  MistriUser get _user =>
-      context.read<UserProvider>().mistriData ?? MockMistriData.mockUser;
+  MistriUser get _user {
+    final userProvider = context.watch<UserProvider>();
+    final profile = userProvider.currentUser;
+    return userProvider.mistriData ??
+        MistriUser(
+          id: profile?.id ?? '',
+          name: profile?.name ?? 'Mistri',
+          phone: profile?.phone ?? '',
+          imageUrl: profile?.imageUrl,
+          specialization: 'General',
+          approvedPoints: 0,
+          pendingPoints: 0,
+          rank: 'Bronze',
+          badgeIcon: '🥉',
+          totalDeliveries: 0,
+          successRate: 0,
+          assignedDealer: const DealerModel(
+            id: '',
+            name: 'Not Assigned',
+            shopName: 'No Dealer',
+            phone: '',
+            address: '',
+            rating: 0,
+            totalDeliveries: 0,
+          ),
+        );
+  }
   List<DeliveryModel> get _deliveries =>
       context.read<DeliveryProvider>().allDeliveries;
 
@@ -98,7 +125,7 @@ class _MistriHomeScreenState extends State<MistriHomeScreen>
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: CustomScrollView(
         controller: _scrollController,
         slivers: [
@@ -569,6 +596,14 @@ class _MistriHomeScreenState extends State<MistriHomeScreen>
                   label: l10n.commonCall,
                   color: AppColors.success,
                   onTap: () {
+                    if (dealer.phone.trim().isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Dealer phone is not available yet.'),
+                        ),
+                      );
+                      return;
+                    }
                     _showCallDialog(dealer.phone);
                   },
                 ),
@@ -579,8 +614,61 @@ class _MistriHomeScreenState extends State<MistriHomeScreen>
                   icon: Icons.message,
                   label: l10n.commonMessage,
                   color: AppColors.info,
-                  onTap: () {
-                    context.push('/chat/${dealer.id}');
+                  onTap: () async {
+                    final auth = context.read<AuthProvider>();
+                    final user = context.read<UserProvider>().currentUser;
+                    if (auth.userId == null || auth.userRole == null || user == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please re-login to start chat with dealer.'),
+                        ),
+                      );
+                      return;
+                    }
+
+                    if (dealer.id.trim().isEmpty) {
+                      if (dealer.phone.trim().isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Dealer contact is not available yet.'),
+                          ),
+                        );
+                        return;
+                      }
+                      final launched = await UrlLauncherService.launchSms(
+                        dealer.phone,
+                        body: 'Hello ${dealer.name}, I have a query regarding my account.',
+                      );
+                      if (!mounted) return;
+                      if (!launched) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Unable to open messaging app for dealer.'),
+                          ),
+                        );
+                      }
+                      return;
+                    }
+
+                    final chatId = await FirestoreService.createOrGetDirectChat(
+                      userId: auth.userId!,
+                      userName: user.name,
+                      userRole: auth.userRole!.key,
+                      otherUserId: dealer.id,
+                      otherUserName: dealer.name,
+                      otherUserRole: UserRole.dealer.key,
+                    );
+
+                    if (!mounted) return;
+                    await context.push(
+                      AppRoutes.chatWithId(dealer.id),
+                      extra: ChatContact(
+                        id: dealer.id,
+                        chatId: chatId,
+                        name: dealer.name,
+                        role: UserRole.dealer.key,
+                      ),
+                    );
                   },
                 ),
               ),
@@ -591,7 +679,16 @@ class _MistriHomeScreenState extends State<MistriHomeScreen>
                   label: l10n.commonNavigate,
                   color: AppColors.secondary,
                   onTap: () {
-                    _showNavigationDialog(dealer.address);
+                    final destination = dealer.address.trim();
+                    if (destination.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Dealer location is not available yet.'),
+                        ),
+                      );
+                      return;
+                    }
+                    _showNavigationDialog(destination);
                   },
                 ),
               ),
@@ -989,14 +1086,7 @@ class _MistriHomeScreenState extends State<MistriHomeScreen>
 
   // Helper methods for actions
   void _showDeliveriesTab() {
-    // This would typically communicate with the shell screen to switch tabs
-    // For now, show a snackbar indicating the action
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Navigate to Deliveries tab'),
-        duration: Duration(seconds: 1),
-      ),
-    );
+    context.go('${AppRoutes.mistriHome}?tab=deliveries');
   }
 
   void _showCallDialog(String phone) {
@@ -1012,9 +1102,13 @@ class _MistriHomeScreenState extends State<MistriHomeScreen>
             child: Text(l10n.commonCancel),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              UrlLauncherService.launchPhone(phone);
+              final launched = await UrlLauncherService.launchPhone(phone);
+              if (!mounted || launched) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Unable to open phone dialer.')),
+              );
             },
             child: Text(l10n.commonCall),
           ),
@@ -1036,9 +1130,13 @@ class _MistriHomeScreenState extends State<MistriHomeScreen>
             child: Text(l10n.commonCancel),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              UrlLauncherService.launchMaps(address);
+              final launched = await UrlLauncherService.launchMaps(address);
+              if (!mounted || launched) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Unable to open maps app.')),
+              );
             },
             child: Text(l10n.commonNavigate),
           ),

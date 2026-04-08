@@ -10,3 +10,4 @@ export 'messaging_service.dart';
 export 'url_launcher_service.dart';
 export 'image_picker_service.dart';
 export 'location_service.dart';
+export 'biometric_service.dart';

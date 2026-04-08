@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../../design_system/design_system.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/architect_models.dart';
+import '../../providers/user_provider.dart' show UserProvider;
 import '../../services/url_launcher_service.dart';
 import '../../widgets/widgets.dart';
 
@@ -28,9 +30,23 @@ class _ArchitectHomeScreenState extends State<ArchitectHomeScreen>
   late AnimationController _floatController;
   late AnimationController _pulseController;
 
-  final ArchitectUser _user = MockArchitectData.mockUser; // Loaded from UserProvider in production
-  final List<AssociatedDealer> _dealers = MockArchitectData.mockDealers; // Loaded from Firestore in production
-  final List<RecentSpec> _recentSpecs = MockArchitectData.mockRecentSpecs; // Loaded from Firestore in production
+  final List<AssociatedDealer> _dealers = [];
+  final List<RecentSpec> _recentSpecs = [];
+
+  ArchitectUser get _user {
+    final profile = context.watch<UserProvider>().currentUser;
+    return ArchitectUser(
+      id: profile?.id ?? '',
+      name: profile?.name ?? 'Architect',
+      licenseNo: '',
+      phone: profile?.phone ?? '',
+      imageUrl: profile?.imageUrl,
+      activeProjects: 0,
+      totalSpecifications: _recentSpecs.length,
+      rewardPoints: 0,
+      connectedDealers: _dealers.length,
+    );
+  }
 
   @override
   void initState() {
@@ -62,7 +78,7 @@ class _ArchitectHomeScreenState extends State<ArchitectHomeScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: CustomScrollView(
         slivers: [
           _buildAppBar(),

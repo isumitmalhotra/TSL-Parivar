@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../design_system/design_system.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/architect_models.dart';
+import '../../services/firestore_service.dart';
 import '../../widgets/widgets.dart';
 
 /// Architect Create Specification Screen
@@ -49,8 +50,8 @@ class _ArchitectCreateSpecScreenState extends State<ArchitectCreateSpecScreen>
   DateTime? _expectedDate;
   String _notes = '';
 
-  final List<AssociatedDealer> _dealers = MockArchitectData.mockDealers; // Loaded from Firestore in production
-  final List<String> _materials = MockArchitectData.materialTypes; // Product catalog from Firestore
+  List<AssociatedDealer> _dealers = [];
+  List<String> _materials = [];
 
   @override
   void initState() {
@@ -65,6 +66,50 @@ class _ArchitectCreateSpecScreenState extends State<ArchitectCreateSpecScreen>
       _projectName = widget.existingProject!.name;
       _projectType = widget.existingProject!.type;
       _location = widget.existingProject!.location;
+    }
+
+    _loadCatalogData();
+  }
+
+  Future<void> _loadCatalogData() async {
+    try {
+      final dealersSnapshot = await FirestoreService.dealersCollection.get();
+      final productsSnapshot = await FirestoreService.productsCollection.get();
+
+      final dealers = dealersSnapshot.docs.map((doc) {
+        final data = doc.data();
+        return AssociatedDealer(
+          id: doc.id,
+          name: (data['name'] as String?) ?? 'Dealer',
+          shopName: (data['shopName'] as String?) ?? 'TSL Dealer',
+          phone: (data['phone'] as String?) ?? '',
+          location: (data['location'] as String?) ?? (data['address'] as String?) ?? '',
+          rating: ((data['rating'] as num?) ?? 0).toDouble(),
+        );
+      }).toList();
+
+      final materials = productsSnapshot.docs
+          .map((doc) => (doc.data()['name'] as String?)?.trim())
+          .whereType<String>()
+          .where((name) => name.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort();
+
+      if (!mounted) return;
+      setState(() {
+        _dealers = dealers;
+        _materials = materials;
+        if (_selectedMaterial != null && !_materials.contains(_selectedMaterial)) {
+          _selectedMaterial = null;
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _dealers = [];
+        _materials = [];
+      });
     }
   }
 
@@ -479,6 +524,19 @@ class _ArchitectCreateSpecScreenState extends State<ArchitectCreateSpecScreen>
   }
 
   Widget _buildMaterialStep() {
+    if (_materials.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(AppSpacing.xl),
+          child: TslEmptyState(
+            icon: Icons.inventory_2_outlined,
+            title: 'No materials available',
+            message: 'Product catalog is empty. Please sync products in Firestore.',
+          ),
+        ),
+      );
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
@@ -673,6 +731,19 @@ class _ArchitectCreateSpecScreenState extends State<ArchitectCreateSpecScreen>
   }
 
   Widget _buildDealerStep() {
+    if (_dealers.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(AppSpacing.xl),
+          child: TslEmptyState(
+            icon: Icons.store_outlined,
+            title: 'No dealers available',
+            message: 'Add dealer profiles in Firestore to assign specifications.',
+          ),
+        ),
+      );
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(

@@ -1,14 +1,22 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../design_system/design_system.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/shared_models.dart';
+import '../../navigation/app_router.dart';
+import '../../providers/app_settings_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/dealer_data_provider.dart';
 import '../../providers/language_provider.dart';
 import '../../providers/user_provider.dart';
+import '../../services/biometric_service.dart';
+import '../../services/url_launcher_service.dart';
 import '../../widgets/widgets.dart';
 
 /// Profile Screen
@@ -23,11 +31,7 @@ class ProfileScreen extends StatefulWidget {
   final UserRole userRole;
   final VoidCallback? onLogout;
 
-  const ProfileScreen({
-    super.key,
-    required this.userRole,
-    this.onLogout,
-  });
+  const ProfileScreen({super.key, required this.userRole, this.onLogout});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -36,9 +40,12 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _floatController;
+  final BiometricService _biometricService = BiometricService();
+  bool _isTogglingBiometric = false;
+
+  UserProvider? _subscribedUserProvider;
 
   late AppUserProfile _profile;
-  late AppSettings _settings;
 
   @override
   void initState() {
@@ -47,9 +54,6 @@ class _ProfileScreenState extends State<ProfileScreen>
       duration: const Duration(milliseconds: 3000),
       vsync: this,
     )..repeat(reverse: true);
-
-    // Load settings
-    _settings = MockSharedData.mockSettings;
 
     // Profile is hydrated from authenticated providers in didChangeDependencies.
     _profile = AppUserProfile(
@@ -63,10 +67,22 @@ class _ProfileScreenState extends State<ProfileScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final userProvider = context.read<UserProvider>();
+    if (_subscribedUserProvider != userProvider) {
+      _subscribedUserProvider?.removeListener(_handleUserProviderUpdated);
+      _subscribedUserProvider = userProvider;
+      _subscribedUserProvider?.addListener(_handleUserProviderUpdated);
+    }
     _loadRealUserProfile();
   }
 
-  /// Load real user data from providers, fall back to mock if unavailable
+  void _handleUserProviderUpdated() {
+    if (!mounted) return;
+    _loadRealUserProfile();
+    setState(() {});
+  }
+
+  /// Load real user data from providers.
   void _loadRealUserProfile() {
     try {
       final authProvider = context.read<AuthProvider>();
@@ -76,7 +92,9 @@ class _ProfileScreenState extends State<ProfileScreen>
         final authUid = authProvider.userId;
         final authRole = authProvider.userRole ?? widget.userRole;
 
-        if (!userProvider.hasUser && authUid != null) {
+        if (!userProvider.hasUser &&
+            !userProvider.isLoading &&
+            authUid != null) {
           userProvider.loadUserData(
             authUid,
             authRole,
@@ -96,7 +114,8 @@ class _ProfileScreenState extends State<ProfileScreen>
             location: user.roleSpecificData['location'] as String?,
             address: user.roleSpecificData['address'] as String?,
             joinedDate: user.joinedDate,
-            rewardPoints: (user.roleSpecificData['approvedPoints'] as int?) ?? 0,
+            rewardPoints:
+                (user.roleSpecificData['approvedPoints'] as int?) ?? 0,
             rank: user.roleSpecificData['rank'] as String?,
           );
         } else if (authProvider.phoneNumber != null) {
@@ -111,16 +130,115 @@ class _ProfileScreenState extends State<ProfileScreen>
         }
       }
     } catch (_) {
-      // Provider not available, keep mock data
+      // Keep current in-memory profile if providers are not yet ready.
     }
   }
 
   @override
   void dispose() {
+    _subscribedUserProvider?.removeListener(_handleUserProviderUpdated);
     _floatController.dispose();
     super.dispose();
   }
 
+  Future<void> _handleBiometricToggle(bool enabled) async {
+    final l10n = AppLocalizations.of(context);
+    final settingsProvider = context.read<AppSettingsProvider>();
+
+    if (_isTogglingBiometric) return;
+    setState(() => _isTogglingBiometric = true);
+
+    try {
+      if (!enabled) {
+        await settingsProvider.setBiometricEnabled(enabled: false);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${l10n.biometricAuth} disabled')),
+        );
+        return;
+      }
+
+      final isDeviceSupported = await _biometricService.isDeviceSupported();
+      final canCheck = await _biometricService.canCheckBiometrics();
+      final hasBiometrics = await _biometricService.hasEnrolledBiometrics();
+
+      if (!mounted) return;
+
+      if (!isDeviceSupported || !canCheck || !hasBiometrics) {
+        await settingsProvider.setBiometricEnabled(enabled: false);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${l10n.biometricAuth} is not available on this device',
+            ),
+          ),
+        );
+        return;
+      }
+
+      final authenticated = await _biometricService.authenticate();
+      if (!mounted) return;
+
+      if (!authenticated) {
+        await settingsProvider.setBiometricEnabled(enabled: false);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Biometric verification failed. Please use OTP login.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      await settingsProvider.setBiometricEnabled(enabled: true);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${l10n.biometricAuth} enabled successfully')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      await settingsProvider.setBiometricEnabled(enabled: false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Unable to update biometric setting. Please try again.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isTogglingBiometric = false);
+      }
+    }
+  }
+
+  Future<void> _launchAction(
+    Future<bool> Function() launchAction,
+    String failureMessage,
+  ) async {
+    final ok = await launchAction();
+    if (!mounted || ok) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(failureMessage)));
+  }
+
+  Future<void> _shareApp() async {
+    final ok = await UrlLauncherService.launchShareApp();
+    if (ok || !mounted) return;
+
+    const appUrl =
+        'https://play.google.com/store/apps/details?id=com.tslsteel.parivar';
+    await Clipboard.setData(const ClipboardData(text: appUrl));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('App link copied to clipboard.')),
+    );
+  }
 
   Color get _roleColor {
     switch (widget.userRole) {
@@ -146,8 +264,9 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: colorScheme.surface,
       body: CustomScrollView(
         slivers: [
           _buildSliverAppBar(),
@@ -190,9 +309,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           onPressed: () => _showQRCode(),
         ),
       ],
-      flexibleSpace: FlexibleSpaceBar(
-        background: _buildHeaderContent(),
-      ),
+      flexibleSpace: FlexibleSpaceBar(background: _buildHeaderContent()),
     );
   }
 
@@ -367,11 +484,12 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Widget _buildProfileCard() {
     final l10n = AppLocalizations.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.all(AppSpacing.lg),
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: AppColors.cardWhite,
+        color: colorScheme.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(20),
         boxShadow: AppShadows.md,
       ),
@@ -379,9 +497,17 @@ class _ProfileScreenState extends State<ProfileScreen>
         children: [
           _buildInfoRow(Icons.phone_outlined, l10n.phoneNumber, _profile.phone),
           const Divider(height: AppSpacing.xl),
-          _buildInfoRow(Icons.email_outlined, 'Email', _profile.email ?? l10n.profileNotSet),
+          _buildInfoRow(
+            Icons.email_outlined,
+            'Email',
+            _profile.email ?? l10n.profileNotSet,
+          ),
           const Divider(height: AppSpacing.xl),
-          _buildInfoRow(Icons.location_on_outlined, l10n.location, _profile.location ?? l10n.profileNotSet),
+          _buildInfoRow(
+            Icons.location_on_outlined,
+            l10n.location,
+            _profile.location ?? l10n.profileNotSet,
+          ),
           const Divider(height: AppSpacing.xl),
           _buildInfoRow(
             Icons.calendar_today_outlined,
@@ -396,6 +522,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _buildInfoRow(IconData icon, String label, String value) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Row(
       children: [
         Container(
@@ -415,7 +542,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               Text(
                 label,
                 style: AppTypography.caption.copyWith(
-                  color: AppColors.textSecondary,
+                  color: colorScheme.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: AppSpacing.xxs),
@@ -491,13 +618,14 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   String _getStatValue1() {
+    final userProvider = context.watch<UserProvider>();
     switch (widget.userRole) {
       case UserRole.mistri:
-        return '42';
+        return '${userProvider.mistriData?.totalDeliveries ?? 0}';
       case UserRole.dealer:
-        return '15';
+        return '${context.watch<DealerDataProvider>().mistris.length}';
       case UserRole.architect:
-        return '8';
+        return '${userProvider.architectData?.activeProjects ?? 0}';
     }
   }
 
@@ -513,13 +641,19 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   String _getStatValue2() {
+    final userProvider = context.watch<UserProvider>();
     switch (widget.userRole) {
       case UserRole.mistri:
-        return '98%';
+        final successRate = userProvider.mistriData?.successRate ?? 0;
+        return '${successRate.toStringAsFixed(0)}%';
       case UserRole.dealer:
-        return '₹15L';
+        final volume = context
+            .watch<DealerDataProvider>()
+            .dealerUser
+            .weeklyVolume;
+        return volume.toStringAsFixed(1);
       case UserRole.architect:
-        return '25';
+        return '${userProvider.architectData?.completedSpecs ?? 0}';
     }
   }
 
@@ -590,8 +724,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     String subtitle,
     VoidCallback onTap,
   ) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Material(
-      color: AppColors.cardWhite,
+      color: colorScheme.surface,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -624,7 +759,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               Text(
                 subtitle,
                 style: AppTypography.caption.copyWith(
-                  color: AppColors.textSecondary,
+                  color: colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
@@ -636,10 +771,11 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Widget _buildSettingsSection() {
     final l10n = AppLocalizations.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
       decoration: BoxDecoration(
-        color: AppColors.cardWhite,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         boxShadow: AppShadows.sm,
       ),
@@ -658,50 +794,46 @@ class _ProfileScreenState extends State<ProfileScreen>
           _buildSettingsItem(
             Icons.language_outlined,
             AppLocalizations.of(context).profileLanguage,
-            _settings.languageCode == 'en' ? l10n.languageEnglish : l10n.languageHindi,
+            _settings.languageCode == 'en'
+                ? l10n.languageEnglish
+                : l10n.languageHindi,
             onTap: () => _showLanguageSheet(),
           ),
           _buildSettingsItem(
             Icons.notifications_outlined,
             AppLocalizations.of(context).profileNotifications,
-            _settings.notificationsEnabled ? l10n.profileEnabled : l10n.profileDisabled,
+            _settings.notificationsEnabled
+                ? l10n.profileEnabled
+                : l10n.profileDisabled,
             hasToggle: true,
             toggleValue: _settings.notificationsEnabled,
-            onToggle: (v) => setState(
-              () => _settings = _settings.copyWith(notificationsEnabled: v),
-            ),
-          ),
-          _buildSettingsItem(
-            Icons.dark_mode_outlined,
-            AppLocalizations.of(context).darkMode,
-            _settings.darkModeEnabled ? l10n.profileOn : l10n.profileOff,
-            hasToggle: true,
-            toggleValue: _settings.darkModeEnabled,
-            onToggle: (v) => setState(
-              () => _settings = _settings.copyWith(darkModeEnabled: v),
+            onToggle: (v) => unawaited(
+              context.read<AppSettingsProvider>().setNotificationsEnabled(
+                enabled: v,
+              ),
             ),
           ),
           _buildSettingsItem(
             Icons.fingerprint,
             l10n.biometricAuth,
-            _settings.biometricEnabled ? l10n.profileEnabled : l10n.profileDisabled,
+            _settings.biometricEnabled
+                ? l10n.profileEnabled
+                : l10n.profileDisabled,
             hasToggle: true,
             toggleValue: _settings.biometricEnabled,
-            onToggle: (v) => setState(
-              () => _settings = _settings.copyWith(biometricEnabled: v),
-            ),
+            onToggle: (v) => unawaited(_handleBiometricToggle(v)),
           ),
           _buildSettingsItem(
             Icons.privacy_tip_outlined,
             l10n.privacyPolicy,
             '',
-            onTap: () {},
+            onTap: () => context.push(AppRoutes.legalPrivacy),
           ),
           _buildSettingsItem(
             Icons.description_outlined,
             l10n.termsOfService,
             '',
-            onTap: () {},
+            onTap: () => context.push(AppRoutes.legalTerms),
             isLast: true,
           ),
         ],
@@ -719,6 +851,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     ValueChanged<bool>? onToggle,
     bool isLast = false,
   }) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Column(
       children: [
         Material(
@@ -732,43 +865,51 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
               child: Row(
                 children: [
-                  Icon(icon, color: AppColors.textSecondary, size: 22),
+                  Icon(icon, color: colorScheme.onSurfaceVariant, size: 22),
                   const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: AppTypography.bodyMedium,
-                    ),
-                  ),
+                  Expanded(child: Text(title, style: AppTypography.bodyMedium)),
                   if (hasToggle)
-                    Switch(
-                      value: toggleValue,
-                      onChanged: onToggle,
-                      thumbColor: WidgetStateProperty.resolveWith((states) {
-                        if (states.contains(WidgetState.selected)) {
-                          return _roleColor;
-                        }
-                        return null;
-                      }),
-                      trackColor: WidgetStateProperty.resolveWith((states) {
-                        if (states.contains(WidgetState.selected)) {
-                          return _roleColor.withValues(alpha: 0.5);
-                        }
-                        return null;
-                      }),
-                    )
+                    (_isTogglingBiometric && icon == Icons.fingerprint)
+                        ? SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: _roleColor,
+                            ),
+                          )
+                        : Switch(
+                            value: toggleValue,
+                            onChanged: onToggle,
+                            thumbColor: WidgetStateProperty.resolveWith((
+                              states,
+                            ) {
+                              if (states.contains(WidgetState.selected)) {
+                                return _roleColor;
+                              }
+                              return null;
+                            }),
+                            trackColor: WidgetStateProperty.resolveWith((
+                              states,
+                            ) {
+                              if (states.contains(WidgetState.selected)) {
+                                return _roleColor.withValues(alpha: 0.5);
+                              }
+                              return null;
+                            }),
+                          )
                   else ...[
                     if (value.isNotEmpty)
                       Text(
                         value,
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.textSecondary,
+                          color: colorScheme.onSurfaceVariant,
                         ),
                       ),
                     const SizedBox(width: AppSpacing.xs),
-                    const Icon(
+                    Icon(
                       Icons.chevron_right,
-                      color: AppColors.textSecondary,
+                      color: colorScheme.onSurfaceVariant,
                       size: 20,
                     ),
                   ],
@@ -777,18 +918,18 @@ class _ProfileScreenState extends State<ProfileScreen>
             ),
           ),
         ),
-        if (!isLast)
-          const Divider(height: 1, indent: 56),
+        if (!isLast) const Divider(height: 1, indent: 56),
       ],
     );
   }
 
   Widget _buildSupportSection() {
     final l10n = AppLocalizations.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: AppColors.cardWhite,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         boxShadow: AppShadows.sm,
       ),
@@ -808,25 +949,40 @@ class _ProfileScreenState extends State<ProfileScreen>
             Icons.help_outline,
             l10n.helpSupport,
             '',
-            onTap: () {},
+            onTap: () => unawaited(
+              _launchAction(
+                UrlLauncherService.launchHelpSupport,
+                'Unable to open Help & Support right now.',
+              ),
+            ),
           ),
           _buildSettingsItem(
             Icons.chat_bubble_outline,
             l10n.profileContactSupport,
             '',
-            onTap: () {},
+            onTap: () => unawaited(
+              _launchAction(
+                UrlLauncherService.launchContactSupport,
+                'Unable to open Contact Support right now.',
+              ),
+            ),
           ),
           _buildSettingsItem(
             Icons.star_outline,
             l10n.profileRateApp,
             '',
-            onTap: () {},
+            onTap: () => unawaited(
+              _launchAction(
+                UrlLauncherService.launchRateApp,
+                'Unable to open app rating page right now.',
+              ),
+            ),
           ),
           _buildSettingsItem(
             Icons.share_outlined,
             l10n.profileShareApp,
             '',
-            onTap: () {},
+            onTap: () => unawaited(_shareApp()),
             isLast: true,
           ),
         ],
@@ -867,6 +1023,7 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Widget _buildVersionInfo() {
     final l10n = AppLocalizations.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.xl),
       child: Column(
@@ -874,21 +1031,21 @@ class _ProfileScreenState extends State<ProfileScreen>
           Text(
             'TSL Parivar',
             style: AppTypography.labelMedium.copyWith(
-              color: AppColors.textSecondary,
+              color: colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: AppSpacing.xxs),
           Text(
             l10n.profileBuildVersion,
             style: AppTypography.caption.copyWith(
-              color: AppColors.textSecondary.withValues(alpha: 0.7),
+              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
             ),
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
             l10n.profileCopyright,
             style: AppTypography.caption.copyWith(
-              color: AppColors.textSecondary.withValues(alpha: 0.5),
+              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.65),
             ),
           ),
         ],
@@ -898,16 +1055,30 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   String _formatDate(DateTime date) {
     final months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${months[date.month - 1]} ${date.year}';
   }
 
   void _showEditProfileSheet() {
+    final rootNavigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final authProvider = context.read<AuthProvider>();
+
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: AppColors.cardWhite,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -915,9 +1086,45 @@ class _ProfileScreenState extends State<ProfileScreen>
       builder: (context) => _EditProfileSheet(
         profile: _profile,
         roleColor: _roleColor,
-        onSave: (profile) {
-          setState(() => _profile = profile);
-          Navigator.pop(context);
+        onSave: (profile) async {
+          final userProvider = context.read<UserProvider>();
+          if (!userProvider.hasUser) {
+            messenger.showSnackBar(
+              const SnackBar(
+                content: Text('Profile is still loading. Please try again.'),
+              ),
+            );
+            return;
+          }
+
+          final success = await userProvider.updateProfile(
+            name: profile.name,
+            email: profile.email,
+            location: profile.location,
+            address: profile.address,
+          );
+
+          if (!mounted) return;
+
+          if (success) {
+            if (authProvider.userId != null && authProvider.userRole != null) {
+              await userProvider.loadUserData(
+                authProvider.userId!,
+                authProvider.userRole!,
+                phoneNumber: authProvider.phoneNumber,
+              );
+            }
+            setState(() => _profile = profile);
+            rootNavigator.pop();
+          } else {
+            messenger.showSnackBar(
+              SnackBar(
+                content: Text(
+                  userProvider.errorMessage ?? 'Failed to save profile changes',
+                ),
+              ),
+            );
+          }
         },
       ),
     );
@@ -926,7 +1133,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   void _showLanguageSheet() {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: AppColors.cardWhite,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -941,16 +1148,27 @@ class _ProfileScreenState extends State<ProfileScreen>
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.disabled,
+                  color: Theme.of(context).colorScheme.outlineVariant,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ),
             const SizedBox(height: AppSpacing.xl),
-            Text(AppLocalizations.of(context).selectLanguage, style: AppTypography.h2),
+            Text(
+              AppLocalizations.of(context).selectLanguage,
+              style: AppTypography.h2,
+            ),
             const SizedBox(height: AppSpacing.xl),
-            _buildLanguageOption(AppLocalizations.of(context).languageEnglish, 'en', Icons.language),
-            _buildLanguageOption(AppLocalizations.of(context).languageHindi, 'hi', Icons.translate),
+            _buildLanguageOption(
+              AppLocalizations.of(context).languageEnglish,
+              'en',
+              Icons.language,
+            ),
+            _buildLanguageOption(
+              AppLocalizations.of(context).languageHindi,
+              'hi',
+              Icons.translate,
+            ),
           ],
         ),
       ),
@@ -959,16 +1177,19 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Widget _buildLanguageOption(String label, String code, IconData icon) {
     final isSelected = _settings.languageCode == code;
+    final colorScheme = Theme.of(context).colorScheme;
     return Material(
-      color: isSelected ? _roleColor.withValues(alpha: 0.1) : Colors.transparent,
+      color: isSelected
+          ? _roleColor.withValues(alpha: 0.1)
+          : Colors.transparent,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: () {
-          setState(() {
-            _settings = _settings.copyWith(languageCode: code);
-          });
+          context.read<AppSettingsProvider>().setLanguageCode(code);
           // Actually change the app locale via LanguageProvider
-          context.read<LanguageProvider>().setLocaleByCode(code == 'en' ? 'EN' : 'HI');
+          context.read<LanguageProvider>().setLocaleByCode(
+            code == 'en' ? 'EN' : 'HI',
+          );
           Navigator.pop(context);
         },
         borderRadius: BorderRadius.circular(12),
@@ -976,19 +1197,23 @@ class _ProfileScreenState extends State<ProfileScreen>
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: Row(
             children: [
-              Icon(icon, color: isSelected ? _roleColor : AppColors.textSecondary),
+              Icon(
+                icon,
+                color: isSelected ? _roleColor : colorScheme.onSurfaceVariant,
+              ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Text(
                   label,
                   style: AppTypography.bodyLarge.copyWith(
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                    color: isSelected ? _roleColor : AppColors.textPrimary,
+                    fontWeight: isSelected
+                        ? FontWeight.w600
+                        : FontWeight.normal,
+                    color: isSelected ? _roleColor : colorScheme.onSurface,
                   ),
                 ),
               ),
-              if (isSelected)
-                Icon(Icons.check_circle, color: _roleColor),
+              if (isSelected) Icon(Icons.check_circle, color: _roleColor),
             ],
           ),
         ),
@@ -1000,28 +1225,30 @@ class _ProfileScreenState extends State<ProfileScreen>
     showDialog<void>(
       context: context,
       builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.xl),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(AppLocalizations.of(context).profileYourQrCode, style: AppTypography.h3),
+              Text(
+                AppLocalizations.of(context).profileYourQrCode,
+                style: AppTypography.h3,
+              ),
               const SizedBox(height: AppSpacing.xl),
               Container(
                 width: 200,
                 height: 200,
                 decoration: BoxDecoration(
-                  color: AppColors.backgroundLight,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Center(
+                child: Center(
                   child: Icon(
                     Icons.qr_code_2,
                     size: 150,
-                    color: AppColors.textPrimary,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
               ),
@@ -1035,7 +1262,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               Text(
                 '${AppLocalizations.of(context).profileIdPrefix}: ${_profile.id}',
                 style: AppTypography.caption.copyWith(
-                  color: AppColors.textSecondary,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: AppSpacing.xl),
@@ -1057,9 +1284,8 @@ class _ProfileScreenState extends State<ProfileScreen>
     showDialog<void>(
       context: context,
       builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         child: Container(
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: Column(
@@ -1122,7 +1348,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  AppLocalizations.of(context).appName.toUpperCase(),
+                                  AppLocalizations.of(
+                                    context,
+                                  ).appName.toUpperCase(),
                                   style: AppTypography.labelLarge.copyWith(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -1145,7 +1373,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                       width: double.infinity,
                       padding: const EdgeInsets.all(AppSpacing.lg),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerHighest,
                         borderRadius: const BorderRadius.only(
                           bottomLeft: Radius.circular(16),
                           bottomRight: Radius.circular(16),
@@ -1184,13 +1414,17 @@ class _ProfileScreenState extends State<ProfileScreen>
                                 Text(
                                   '${AppLocalizations.of(context).profileIdPrefix}: ${_profile.id}',
                                   style: AppTypography.caption.copyWith(
-                                    color: AppColors.textSecondary,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
                                   ),
                                 ),
                                 Text(
                                   _profile.phone,
                                   style: AppTypography.caption.copyWith(
-                                    color: AppColors.textSecondary,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
                                   ),
                                 ),
                               ],
@@ -1200,12 +1434,12 @@ class _ProfileScreenState extends State<ProfileScreen>
                             width: 50,
                             height: 50,
                             decoration: BoxDecoration(
-                              color: AppColors.backgroundLight,
+                              color: Theme.of(context).colorScheme.surface,
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.qr_code,
-                              color: AppColors.textPrimary,
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
                         ],
@@ -1233,9 +1467,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
             Container(
@@ -1251,9 +1483,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             Text(AppLocalizations.of(context).logoutConfirmTitle),
           ],
         ),
-        content: Text(
-          AppLocalizations.of(context).logoutConfirmMessage,
-        ),
+        content: Text(AppLocalizations.of(context).logoutConfirmMessage),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -1282,11 +1512,15 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 }
 
+extension on _ProfileScreenState {
+  AppSettings get _settings => context.watch<AppSettingsProvider>().settings;
+}
+
 /// Edit profile sheet
 class _EditProfileSheet extends StatefulWidget {
   final AppUserProfile profile;
   final Color roleColor;
-  final void Function(AppUserProfile) onSave;
+  final Future<void> Function(AppUserProfile) onSave;
 
   const _EditProfileSheet({
     required this.profile,
@@ -1303,14 +1537,19 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
   late TextEditingController _emailController;
   late TextEditingController _locationController;
   late TextEditingController _addressController;
+  bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.profile.name);
     _emailController = TextEditingController(text: widget.profile.email ?? '');
-    _locationController = TextEditingController(text: widget.profile.location ?? '');
-    _addressController = TextEditingController(text: widget.profile.address ?? '');
+    _locationController = TextEditingController(
+      text: widget.profile.location ?? '',
+    );
+    _addressController = TextEditingController(
+      text: widget.profile.address ?? '',
+    );
   }
 
   @override
@@ -1347,7 +1586,10 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
               ),
             ),
             const SizedBox(height: AppSpacing.xl),
-            Text(AppLocalizations.of(context).editProfile, style: AppTypography.h2),
+            Text(
+              AppLocalizations.of(context).editProfile,
+              style: AppTypography.h2,
+            ),
             const SizedBox(height: AppSpacing.xl),
             TslTextField(
               controller: _nameController,
@@ -1379,14 +1621,19 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
               width: double.infinity,
               child: TslPrimaryButton(
                 label: AppLocalizations.of(context).profileSaveChanges,
-                onPressed: () {
+                isLoading: _isSaving,
+                onPressed: () async {
+                  setState(() => _isSaving = true);
                   final updated = widget.profile.copyWith(
                     name: _nameController.text,
                     email: _emailController.text,
                     location: _locationController.text,
                     address: _addressController.text,
                   );
-                  widget.onSave(updated);
+                  await widget.onSave(updated);
+                  if (mounted) {
+                    setState(() => _isSaving = false);
+                  }
                 },
               ),
             ),
@@ -1444,4 +1691,3 @@ class _ProfilePatternPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
-

@@ -133,21 +133,30 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen>
   }
 
   Widget _buildAnimatedBackground(Size size) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return AnimatedBuilder(
       animation: _backgroundController,
       builder: (context, child) {
         return Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [
-                Color(0xFFFFFFFF), // White
-                Color(0xFFF0FFF0), // Very light green
-                Color(0xFFE8F5E9), // Light green
-                Color(0xFFC8E6C9), // Soft green
-                Color(0xFFB9DFB9), // Softer medium green
-              ],
+              colors: isDark
+                  ? const [
+                      Color(0xFF101512),
+                      Color(0xFF142019),
+                      Color(0xFF1B2A22),
+                      Color(0xFF23352A),
+                      Color(0xFF2A3E31),
+                    ]
+                  : const [
+                      Color(0xFFFFFFFF),
+                      Color(0xFFF0FFF0),
+                      Color(0xFFE8F5E9),
+                      Color(0xFFC8E6C9),
+                      Color(0xFFB9DFB9),
+                    ],
               stops: [0.0, 0.25, 0.5, 0.75, 1.0],
             ),
           ),

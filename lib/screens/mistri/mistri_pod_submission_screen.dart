@@ -33,6 +33,7 @@ class _MistriPodSubmissionScreenState extends State<MistriPodSubmissionScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late DeliveryModel _delivery;
+  bool _hasDelivery = false;
 
   final List<String> _capturedPhotos = [];
   double _deliveredQuantity = 0;
@@ -61,14 +62,13 @@ class _MistriPodSubmissionScreenState extends State<MistriPodSubmissionScreen>
     )..forward();
 
     final allDeliveries = context.read<DeliveryProvider>().allDeliveries;
-    _delivery = allDeliveries.firstWhere(
-      (d) => d.id == widget.deliveryId,
-      orElse: () => allDeliveries.isNotEmpty
-          ? allDeliveries.first
-          : MockMistriData.mockDeliveries.first,
-    );
+    final index = allDeliveries.indexWhere((d) => d.id == widget.deliveryId);
+    if (index >= 0) {
+      _delivery = allDeliveries[index];
+      _hasDelivery = true;
+    }
 
-    _deliveredQuantity = _delivery.quantity;
+    _deliveredQuantity = _hasDelivery ? _delivery.quantity : 0;
     _selectedIssue = _issueOptions.first;
 
     // Simulate location verification
@@ -121,6 +121,27 @@ class _MistriPodSubmissionScreenState extends State<MistriPodSubmissionScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (!_hasDelivery) {
+      return Scaffold(
+        backgroundColor: AppColors.backgroundLight,
+        appBar: AppBar(
+          backgroundColor: AppColors.cardWhite,
+          elevation: 0,
+          title: const Text('POD unavailable'),
+        ),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(AppSpacing.xl),
+            child: TslEmptyState(
+              icon: Icons.receipt_long_outlined,
+              title: 'Delivery unavailable',
+              message: 'Unable to submit POD because delivery details were not found.',
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.backgroundLight,
       appBar: AppBar(

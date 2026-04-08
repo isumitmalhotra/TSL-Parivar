@@ -59,6 +59,8 @@
 	<string>TSL Parivar needs your location to verify delivery addresses and provide location-based services.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>TSL Parivar may need microphone access when capturing video for delivery proof.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>TSL Parivar uses Face ID to secure your account access.</string>
 	<!-- Firebase Cloud Messaging -->
 	<key>FirebaseAppDelegateProxyEnabled</key>
 	<false/>

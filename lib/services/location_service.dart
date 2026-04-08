@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -50,6 +51,45 @@ class LocationService {
   /// Format position as human-readable string
   static String formatPosition(Position position) {
     return '${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}';
+  }
+
+  /// Basic coordinate sanity checks used before writing location payloads.
+  static bool isValidCoordinates(double latitude, double longitude) {
+    return latitude >= -90 &&
+        latitude <= 90 &&
+        longitude >= -180 &&
+        longitude <= 180;
+  }
+
+  static bool isAddressUsable(String? address) {
+    return address != null && address.trim().isNotEmpty;
+  }
+
+  /// Reverse geocode coordinates into a compact one-line address.
+  static Future<String?> reverseGeocode({
+    required double latitude,
+    required double longitude,
+  }) async {
+    if (!isValidCoordinates(latitude, longitude)) {
+      return null;
+    }
+    try {
+      final placemarks = await placemarkFromCoordinates(latitude, longitude);
+      if (placemarks.isEmpty) return null;
+      final p = placemarks.first;
+      final parts = <String>[
+        if ((p.street ?? '').trim().isNotEmpty) p.street!.trim(),
+        if ((p.locality ?? '').trim().isNotEmpty) p.locality!.trim(),
+        if ((p.administrativeArea ?? '').trim().isNotEmpty)
+          p.administrativeArea!.trim(),
+        if ((p.postalCode ?? '').trim().isNotEmpty) p.postalCode!.trim(),
+      ];
+      if (parts.isEmpty) return null;
+      return parts.join(', ');
+    } catch (e) {
+      debugPrint('⚠️ Reverse geocode failed: $e');
+      return null;
+    }
   }
 
   /// Calculate distance between two points in meters

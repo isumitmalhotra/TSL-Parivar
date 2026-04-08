@@ -1,11 +1,14 @@
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../design_system/design_system.dart';
 import '../../l10n/app_localizations.dart';
+import '../../navigation/app_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/widgets.dart';
 import 'role_selection_screen.dart';
@@ -51,10 +54,16 @@ class _LoginScreenState extends State<LoginScreen>
   bool _isLoading = false;
   String? _errorText;
   String _countryCode = '+91';
+  late final TapGestureRecognizer _termsTapRecognizer;
+  late final TapGestureRecognizer _privacyTapRecognizer;
 
   @override
   void initState() {
     super.initState();
+    _termsTapRecognizer = TapGestureRecognizer()
+      ..onTap = () => context.push(AppRoutes.legalTerms);
+    _privacyTapRecognizer = TapGestureRecognizer()
+      ..onTap = () => context.push(AppRoutes.legalPrivacy);
     _backgroundController = AnimationController(
       duration: const Duration(seconds: 15),
       vsync: this,
@@ -80,6 +89,8 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   void dispose() {
+    _termsTapRecognizer.dispose();
+    _privacyTapRecognizer.dispose();
     _phoneController.dispose();
     _phoneFocusNode.dispose();
     _backgroundController.dispose();
@@ -108,8 +119,19 @@ class _LoginScreenState extends State<LoginScreen>
     });
 
     final authProvider = context.read<AuthProvider>();
+    if (authProvider.isOtpCooldownActive) {
+      setState(() {
+        _isLoading = false;
+        _errorText =
+            'Please wait ${authProvider.otpCooldownSecondsRemaining}s before requesting OTP again.';
+      });
+      return;
+    }
+
     final fullPhoneNumber = '$_countryCode$phone';
-    debugPrint('🧪[OTP:UI] submit phone=$fullPhoneNumber role=${widget.role.key}');
+    debugPrint(
+      '🧪[OTP:UI] submit phone=$fullPhoneNumber role=${widget.role.key}',
+    );
 
     // Send OTP using Firebase Auth via AuthProvider
     final success = await authProvider.sendOtp(fullPhoneNumber);
@@ -123,8 +145,7 @@ class _LoginScreenState extends State<LoginScreen>
       } else {
         // Show error from AuthProvider
         setState(() {
-          _errorText = authProvider.errorMessage ??
-              l10n.loginSendOtpFailed;
+          _errorText = authProvider.errorMessage ?? l10n.loginSendOtpFailed;
         });
       }
     }
@@ -175,22 +196,30 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Widget _buildAnimatedBackground(Size size) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return AnimatedBuilder(
       animation: _backgroundController,
       builder: (context, child) {
         return Container(
           width: size.width,
           height: size.height,
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [
-                Color(0xFFFFFFFF), // White
-                Color(0xFFF0FFF0), // Very light green
-                Color(0xFFE8F5E9), // Light green
-                Color(0xFFC8E6C9), // Soft green
-              ],
+              colors: isDark
+                  ? const [
+                      Color(0xFF101512),
+                      Color(0xFF142019),
+                      Color(0xFF1B2A22),
+                      Color(0xFF23352A),
+                    ]
+                  : const [
+                      Color(0xFFFFFFFF),
+                      Color(0xFFF0FFF0),
+                      Color(0xFFE8F5E9),
+                      Color(0xFFC8E6C9),
+                    ],
               stops: [0.0, 0.3, 0.6, 1.0],
             ),
           ),
@@ -271,30 +300,24 @@ class _LoginScreenState extends State<LoginScreen>
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           // Back button
-          _build3DIconButton(
-            icon: Icons.arrow_back,
-            onTap: widget.onBack,
-          ),
+          _build3DIconButton(icon: Icons.arrow_back, onTap: widget.onBack),
           // Language toggle
-          const TslLanguageToggle(
-            style: TslLanguageToggleStyle.toggle,
-          ),
+          const TslLanguageToggle(style: TslLanguageToggleStyle.toggle),
         ],
       ),
     );
   }
 
-  Widget _build3DIconButton({
-    required IconData icon,
-    VoidCallback? onTap,
-  }) {
+  Widget _build3DIconButton({required IconData icon, VoidCallback? onTap}) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: 48,
         height: 48,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
@@ -309,11 +332,7 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           ],
         ),
-        child: Icon(
-          icon,
-          color: AppColors.textPrimary,
-          size: 22,
-        ),
+        child: Icon(icon, color: colorScheme.onSurface, size: 22),
       ),
     );
   }
@@ -322,21 +341,23 @@ class _LoginScreenState extends State<LoginScreen>
     return AnimatedBuilder(
       animation: _contentController,
       builder: (context, child) {
-        final slideAnimation = Tween<Offset>(
-          begin: const Offset(0, 0.3),
-          end: Offset.zero,
-        ).animate(CurvedAnimation(
-          parent: _contentController,
-          curve: Curves.easeOutCubic,
-        ));
+        final slideAnimation =
+            Tween<Offset>(
+              begin: const Offset(0, 0.3),
+              end: Offset.zero,
+            ).animate(
+              CurvedAnimation(
+                parent: _contentController,
+                curve: Curves.easeOutCubic,
+              ),
+            );
 
-        final opacityAnimation = Tween<double>(
-          begin: 0.0,
-          end: 1.0,
-        ).animate(CurvedAnimation(
-          parent: _contentController,
-          curve: const Interval(0.0, 0.6, curve: Curves.easeIn),
-        ));
+        final opacityAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+          CurvedAnimation(
+            parent: _contentController,
+            curve: const Interval(0.0, 0.6, curve: Curves.easeIn),
+          ),
+        );
 
         return SlideTransition(
           position: slideAnimation,
@@ -399,18 +420,12 @@ class _LoginScreenState extends State<LoginScreen>
           decoration: BoxDecoration(
             color: roleData.color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: roleData.color.withValues(alpha: 0.3),
-            ),
+            border: Border.all(color: roleData.color.withValues(alpha: 0.3)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                roleData.icon,
-                size: 18,
-                color: roleData.color,
-              ),
+              Icon(roleData.icon, size: 18, color: roleData.color),
               const SizedBox(width: AppSpacing.sm),
               Text(
                 roleData.title,
@@ -461,8 +476,8 @@ class _LoginScreenState extends State<LoginScreen>
           color: _errorText != null
               ? AppColors.error
               : isFocused
-                  ? AppColors.primary
-                  : Colors.transparent,
+              ? AppColors.primary
+              : Colors.transparent,
           width: 2,
         ),
         boxShadow: [
@@ -486,11 +501,7 @@ class _LoginScreenState extends State<LoginScreen>
                 vertical: AppSpacing.lg,
               ),
               decoration: BoxDecoration(
-                border: Border(
-                  right: BorderSide(
-                    color: AppColors.border,
-                  ),
-                ),
+                border: Border(right: BorderSide(color: AppColors.border)),
               ),
               child: Row(
                 children: [
@@ -559,9 +570,23 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Widget _buildContinueButton(AppLocalizations l10n) {
+    final authProvider = context.watch<AuthProvider>();
+    final cooldownSeconds = authProvider.otpCooldownSecondsRemaining;
+    final isCooldown = cooldownSeconds > 0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (isCooldown) ...[
+          Text(
+            'You can request OTP again in ${cooldownSeconds}s',
+            textAlign: TextAlign.center,
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
         if (_errorText != null) ...[
           Container(
             padding: const EdgeInsets.all(AppSpacing.md),
@@ -571,11 +596,7 @@ class _LoginScreenState extends State<LoginScreen>
             ),
             child: Row(
               children: [
-                Icon(
-                  Icons.error_outline,
-                  color: AppColors.error,
-                  size: 20,
-                ),
+                Icon(Icons.error_outline, color: AppColors.error, size: 20),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(
@@ -609,16 +630,15 @@ class _LoginScreenState extends State<LoginScreen>
               child: Material(
                 color: Colors.transparent,
                 child: InkWell(
-                  onTap: _isLoading ? null : _onSubmit,
+                  onTap: (_isLoading || isCooldown) ? null : _onSubmit,
                   borderRadius: BorderRadius.circular(16),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppSpacing.lg,
+                    ),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
-                        colors: [
-                          Color(0xFF4CAF50),
-                          AppColors.primary,
-                        ],
+                        colors: [Color(0xFF4CAF50), AppColors.primary],
                       ),
                       borderRadius: BorderRadius.circular(16),
                     ),
@@ -678,6 +698,7 @@ class _LoginScreenState extends State<LoginScreen>
                 color: AppColors.primary,
                 fontWeight: FontWeight.w600,
               ),
+              recognizer: _termsTapRecognizer,
             ),
             TextSpan(text: ' ${l10n.andText} '),
             TextSpan(
@@ -686,6 +707,7 @@ class _LoginScreenState extends State<LoginScreen>
                 color: AppColors.primary,
                 fontWeight: FontWeight.w600,
               ),
+              recognizer: _privacyTapRecognizer,
             ),
           ],
         ),
@@ -707,4 +729,3 @@ class _RoleDisplayData {
     required this.color,
   });
 }
-

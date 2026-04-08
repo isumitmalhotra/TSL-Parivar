@@ -3,6 +3,13 @@ import 'package:url_launcher/url_launcher.dart';
 
 /// Service for launching external URLs, phone calls, SMS, and maps
 class UrlLauncherService {
+  static const String _privacyPolicyUrl = 'https://tslsteel.com/privacy-policy';
+  static const String _termsOfServiceUrl = 'https://tslsteel.com/terms-of-service';
+  static const String _helpSupportUrl = 'https://tslsteel.com/support';
+  static const String _contactSupportEmail = 'support@tslsteel.com';
+  static const String _androidStoreUrl =
+      'https://play.google.com/store/apps/details?id=com.tslsteel.parivar';
+
   /// Launch phone dialer with the given phone number
   static Future<bool> launchPhone(String phoneNumber) async {
     final uri = Uri.parse('tel:$phoneNumber');
@@ -88,6 +95,25 @@ class UrlLauncherService {
       debugPrint('❌ Error launching URL: $e');
       return false;
     }
+  }
+
+  static Future<bool> launchPrivacyPolicy() => launchWebUrl(_privacyPolicyUrl);
+
+  static Future<bool> launchTermsOfService() => launchWebUrl(_termsOfServiceUrl);
+
+  static Future<bool> launchHelpSupport() => launchWebUrl(_helpSupportUrl);
+
+  static Future<bool> launchContactSupport() {
+    return launchWebUrl(
+      'mailto:$_contactSupportEmail?subject=${Uri.encodeComponent('TSL Parivar Support')}',
+    );
+  }
+
+  static Future<bool> launchRateApp() => launchWebUrl(_androidStoreUrl);
+
+  static Future<bool> launchShareApp() {
+    const body = 'Try TSL Parivar app: https://play.google.com/store/apps/details?id=com.tslsteel.parivar';
+    return launchSms('', body: body);
   }
 }
 

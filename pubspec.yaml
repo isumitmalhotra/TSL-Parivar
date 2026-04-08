@@ -1,7 +1,7 @@
 name: tsl
 description: "TSL Parivar - Construction Material Supply Chain Management App"
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.4+5
 
 environment:
   sdk: ^3.9.2
@@ -36,6 +36,7 @@ dependencies:
 
   # Runtime Permissions
   permission_handler: ^11.3.1
+  local_auth: ^2.3.0
 
   # Firebase
   firebase_core: ^3.8.1
@@ -97,4 +98,3 @@ flutter_launcher_icons:
   windows:
     generate: true
     image_path: "assets/images/tsl_app_drawer_logo.png"
-

@@ -43,6 +43,17 @@ class _MistriShellScreenState extends State<MistriShellScreen> {
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(covariant MistriShellScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialIndex != widget.initialIndex &&
+        widget.initialIndex != _currentIndex) {
+      _currentIndex = widget.initialIndex;
+      _pageController.jumpToPage(_currentIndex);
+      setState(() {});
+    }
+  }
+
   void _onTabChanged(int index) {
     if (index == 3) {
       context.push(AppRoutes.profileForRole(UserRole.mistri));

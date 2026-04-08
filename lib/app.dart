@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'design_system/design_system.dart';
 import 'l10n/app_localizations.dart';
 import 'navigation/app_router.dart';
+import 'providers/app_settings_provider.dart';
 import 'providers/language_provider.dart';
 
 /// The main application widget for TSL Parivar
@@ -13,8 +14,8 @@ class TslApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<LanguageProvider>(
-      builder: (context, languageProvider, child) {
+    return Consumer2<LanguageProvider, AppSettingsProvider>(
+      builder: (context, languageProvider, appSettingsProvider, child) {
         return MaterialApp.router(
           title: 'TSL Parivar',
           debugShowCheckedModeBanner: false,
@@ -24,8 +25,7 @@ class TslApp extends StatelessWidget {
 
           // Theme configuration
           theme: AppTheme.light,
-          darkTheme: AppTheme.dark,
-          themeMode: ThemeMode.light, // Force light mode for consistent design
+          themeMode: ThemeMode.light,
 
           // Accessibility: Clamp text scaling to prevent layout breakage
           builder: (context, child) {

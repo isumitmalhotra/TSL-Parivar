@@ -1,10 +1,12 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../design_system/design_system.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/dealer_models.dart';
+import '../../providers/dealer_data_provider.dart';
 import '../../widgets/widgets.dart';
 
 /// Dealer Rewards Screen
@@ -25,9 +27,12 @@ class _DealerRewardsScreenState extends State<DealerRewardsScreen>
   late TabController _tabController;
   late AnimationController _floatController;
 
-  final DealerUser _user = MockDealerData.mockUser; // Loaded from Firestore in production
-  final List<DealerRewardTransaction> _transactions =
-      MockDealerData.mockRewardTransactions; // Loaded from Firestore in production
+  DealerUser get _user =>
+      context.watch<DealerDataProvider>().dealerUser;
+  List<DealerRewardTransaction> get _transactions =>
+      context.watch<DealerDataProvider>().rewardTransactions;
+  List<DealerMistriModel> get _mistris =>
+      context.watch<DealerDataProvider>().mistris;
 
   @override
   void initState() {
@@ -399,7 +404,7 @@ class _DealerRewardsScreenState extends State<DealerRewardsScreen>
       ),
       builder: (context) => _DistributeSheet(
         availablePoints: _user.mistriPoolPoints,
-        mistris: MockDealerData.mockMistris,
+        mistris: _mistris,
       ),
     );
   }

@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../design_system/design_system.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/mistri_models.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/firestore_service.dart';
+import '../../services/location_service.dart';
 import '../../widgets/widgets.dart';
 
 /// Mistri Request New Order Screen
@@ -36,14 +40,15 @@ class _MistriRequestOrderScreenState extends State<MistriRequestOrderScreen>
   UrgencyLevel _urgency = UrgencyLevel.normal;
   String _customerName = '';
   String _customerPhone = '';
-  String _deliveryAddress = '';
   // ignore: unused_field - will be sent to API when backend is connected
   String _notes = '';
 
   bool _isSubmitting = false;
-  bool _useCurrentLocation = true;
+  TslLocation? _selectedLocation;
+  String? _locationError;
 
-  final List<TslMaterialType> _materials = MockMistriData.mockMaterialTypes; // Product catalog - loaded from Firestore products collection in production
+  List<TslMaterialType> _materials = [];
+  bool _isUsingFallbackMaterials = false;
 
   @override
   void initState() {
@@ -52,6 +57,47 @@ class _MistriRequestOrderScreenState extends State<MistriRequestOrderScreen>
       duration: const Duration(milliseconds: 600),
       vsync: this,
     )..forward();
+
+    _loadMaterials();
+  }
+
+  Future<void> _loadMaterials() async {
+    try {
+      final productsSnapshot = await FirestoreService.productsCollection.get();
+      final firestoreMaterials = productsSnapshot.docs.map((doc) {
+        final data = doc.data();
+        final availableUnits = ((data['availableUnits'] as List?) ?? const <dynamic>[])
+            .whereType<String>()
+            .toList();
+        return TslMaterialType(
+          id: doc.id,
+          name: (data['name'] as String?) ?? 'Material',
+          description: (data['description'] as String?) ?? '',
+          icon: Icons.inventory_2,
+          availableUnits: availableUnits.isEmpty ? const ['kg', 'pcs', 'tonnes'] : availableUnits,
+          grades: ((data['grades'] as List?) ?? const <dynamic>[]).whereType<String>().toList(),
+        );
+      }).toList();
+
+      final materials = firestoreMaterials.isEmpty
+          ? MockMistriData.mockMaterialTypes
+          : firestoreMaterials;
+
+      if (!mounted) return;
+      setState(() {
+        _materials = materials;
+        _isUsingFallbackMaterials = firestoreMaterials.isEmpty;
+        if (_selectedMaterial != null && !_materials.any((m) => m.id == _selectedMaterial!.id)) {
+          _selectedMaterial = null;
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _materials = MockMistriData.mockMaterialTypes;
+        _isUsingFallbackMaterials = true;
+      });
+    }
   }
 
   @override
@@ -65,16 +111,115 @@ class _MistriRequestOrderScreenState extends State<MistriRequestOrderScreen>
         _quantity > 0 &&
         _customerName.isNotEmpty &&
         _customerPhone.length >= 10 &&
-        (_useCurrentLocation || _deliveryAddress.isNotEmpty);
+        _selectedLocation != null &&
+        LocationService.isValidCoordinates(
+          _selectedLocation!.latitude,
+          _selectedLocation!.longitude,
+        ) &&
+        LocationService.isAddressUsable(_selectedLocation!.address);
   }
 
-  void _onSubmit() async {
+  Future<TslLocation?> _getCurrentLocation() async {
+    final position = await LocationService.getCurrentPosition();
+    if (position == null) return null;
+
+    final address = await LocationService.reverseGeocode(
+      latitude: position.latitude,
+      longitude: position.longitude,
+    );
+
+    return TslLocation(
+      latitude: position.latitude,
+      longitude: position.longitude,
+      address: address ??
+          '${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}',
+      accuracy: position.accuracy,
+      timestamp: DateTime.now(),
+    );
+  }
+
+  bool _validateLocationBeforeSubmit() {
+    final selected = _selectedLocation;
+    if (selected == null) {
+      setState(() => _locationError = 'Please pick delivery location on map.');
+      return false;
+    }
+    if (!LocationService.isValidCoordinates(selected.latitude, selected.longitude)) {
+      setState(() => _locationError = 'Invalid map coordinates. Please pick again.');
+      return false;
+    }
+    if (!LocationService.isAddressUsable(selected.address)) {
+      setState(() => _locationError = 'Please enter complete delivery address.');
+      return false;
+    }
+
+    setState(() => _locationError = null);
+    return true;
+  }
+
+  Future<void> _onSubmit() async {
     if (!_canSubmit || !_formKey.currentState!.validate()) return;
+    if (!_validateLocationBeforeSubmit()) return;
 
     setState(() => _isSubmitting = true);
 
-    // Simulate API call
-    await Future<void>.delayed(const Duration(seconds: 2));
+    final authProvider = context.read<AuthProvider>();
+    final userId = authProvider.userId;
+    if (userId == null || userId.isEmpty || _selectedMaterial == null) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please login again to submit order.')),
+      );
+      return;
+    }
+
+    try {
+      final resolvedDealerId = await FirestoreService.resolveDealerIdForMistri(userId);
+      if (resolvedDealerId == null || resolvedDealerId.isEmpty) {
+        if (!mounted) return;
+        setState(() => _isSubmitting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No dealer is linked yet. Please ask your dealer to link your profile.'),
+          ),
+        );
+        return;
+      }
+
+      await FirestoreService.createOrder({
+        'userId': userId,
+        'mistriId': userId,
+        'dealerId': resolvedDealerId,
+        'mistriName': 'Mistri',
+        'materialType': _selectedMaterial!.name,
+        'productType': _selectedMaterial!.name,
+        'quantity': _quantity,
+        'unit': _selectedUnit,
+        'location': _selectedLocation!.address,
+        'locationLat': _selectedLocation!.latitude,
+        'locationLng': _selectedLocation!.longitude,
+        'expectedDate': _expectedDate.toIso8601String(),
+        'urgency': _urgency.name,
+        'customerName': _customerName,
+        'customerPhone': _customerPhone,
+        'customerAddress': _selectedLocation!.address,
+        'notes': _notes,
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().contains('No dealer is assigned')
+                ? 'No dealer linked yet. Ask your dealer to add you first.'
+                : 'Failed to submit order. Please retry.',
+          ),
+        ),
+      );
+      return;
+    }
 
     if (mounted) {
       setState(() => _isSubmitting = false);
@@ -98,11 +243,11 @@ class _MistriRequestOrderScreenState extends State<MistriRequestOrderScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         title: Text(AppLocalizations.of(context).requestOrderTitle),
         centerTitle: true,
-        backgroundColor: AppColors.cardWhite,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         elevation: 0,
       ),
       body: Form(
@@ -162,16 +307,40 @@ class _MistriRequestOrderScreenState extends State<MistriRequestOrderScreen>
   }
 
   Widget _buildMaterialSection() {
+    final colorScheme = Theme.of(context).colorScheme;
     return _buildSectionCard(
       title: AppLocalizations.of(context).requestOrderMaterial,
       icon: Icons.inventory_2,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (_isUsingFallbackMaterials)
+            Container(
+              margin: const EdgeInsets.only(bottom: AppSpacing.md),
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: AppColors.warningContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline, color: AppColors.warningDark),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      'Using default product catalog. Sync Firestore products for latest list.',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.warningDark,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Text(
             'Select the material you need',
             style: AppTypography.bodySmall.copyWith(
-              color: AppColors.textSecondary,
+              color: colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: AppSpacing.md),
@@ -199,6 +368,7 @@ class _MistriRequestOrderScreenState extends State<MistriRequestOrderScreen>
   }
 
   Widget _buildMaterialChip(TslMaterialType material, bool isSelected) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -214,12 +384,12 @@ class _MistriRequestOrderScreenState extends State<MistriRequestOrderScreen>
           decoration: BoxDecoration(
             color: isSelected
                 ? AppColors.primary.withValues(alpha: 0.1)
-                : AppColors.backgroundLight,
+                : colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isSelected
                   ? AppColors.primary
-                  : AppColors.border,
+                  : colorScheme.outline,
               width: isSelected ? 2 : 1,
             ),
           ),
@@ -232,7 +402,7 @@ class _MistriRequestOrderScreenState extends State<MistriRequestOrderScreen>
                   size: 20,
                   color: isSelected
                       ? AppColors.primary
-                      : AppColors.textSecondary,
+                      : colorScheme.onSurfaceVariant,
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
@@ -241,7 +411,7 @@ class _MistriRequestOrderScreenState extends State<MistriRequestOrderScreen>
                     style: AppTypography.labelMedium.copyWith(
                       color: isSelected
                           ? AppColors.primary
-                          : AppColors.textPrimary,
+                          : colorScheme.onSurface,
                       fontWeight:
                           isSelected ? FontWeight.w600 : FontWeight.normal,
                     ),
@@ -258,6 +428,7 @@ class _MistriRequestOrderScreenState extends State<MistriRequestOrderScreen>
   }
 
   Widget _buildQuantitySection() {
+    final colorScheme = Theme.of(context).colorScheme;
     return _buildSectionCard(
       title: AppLocalizations.of(context).requestOrderQuantity,
       icon: Icons.straighten,
@@ -274,13 +445,13 @@ class _MistriRequestOrderScreenState extends State<MistriRequestOrderScreen>
                     Text(
                       'Amount',
                       style: AppTypography.labelMedium.copyWith(
-                        color: AppColors.textSecondary,
+                        color: colorScheme.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     Container(
                       decoration: BoxDecoration(
-                        color: AppColors.backgroundLight,
+                        color: colorScheme.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
@@ -319,7 +490,7 @@ class _MistriRequestOrderScreenState extends State<MistriRequestOrderScreen>
                     Text(
                       'Unit',
                       style: AppTypography.labelMedium.copyWith(
-                        color: AppColors.textSecondary,
+                        color: colorScheme.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
@@ -328,7 +499,7 @@ class _MistriRequestOrderScreenState extends State<MistriRequestOrderScreen>
                         horizontal: AppSpacing.md,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.backgroundLight,
+                        color: colorScheme.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: DropdownButtonHideUnderline(
@@ -367,10 +538,10 @@ class _MistriRequestOrderScreenState extends State<MistriRequestOrderScreen>
                     ? AppColors.primary.withValues(alpha: 0.1)
                     : null,
                 side: BorderSide(
-                  color: isSelected ? AppColors.primary : AppColors.border,
+                  color: isSelected ? AppColors.primary : colorScheme.outline,
                 ),
                 labelStyle: TextStyle(
-                  color: isSelected ? AppColors.primary : AppColors.textPrimary,
+                  color: isSelected ? AppColors.primary : colorScheme.onSurface,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                 ),
                 onPressed: () => setState(() => _quantity = qty.toDouble()),
@@ -386,141 +557,24 @@ class _MistriRequestOrderScreenState extends State<MistriRequestOrderScreen>
     return _buildSectionCard(
       title: AppLocalizations.of(context).requestOrderLocation,
       icon: Icons.location_on,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Toggle
-          Row(
-            children: [
-              Expanded(
-                child: _buildToggleOption(
-                  title: 'Current Location',
-                  subtitle: 'Use GPS location',
-                  icon: Icons.gps_fixed,
-                  isSelected: _useCurrentLocation,
-                  onTap: () => setState(() => _useCurrentLocation = true),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: _buildToggleOption(
-                  title: 'Custom Address',
-                  subtitle: 'Enter manually',
-                  icon: Icons.edit_location,
-                  isSelected: !_useCurrentLocation,
-                  onTap: () => setState(() => _useCurrentLocation = false),
-                ),
-              ),
-            ],
-          ),
-          if (_useCurrentLocation) ...[
-            const SizedBox(height: AppSpacing.md),
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              decoration: BoxDecoration(
-                color: AppColors.successContainer,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.check_circle,
-                    color: AppColors.success,
-                    size: 20,
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      'Sector 62, Noida, UP (via GPS)',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.success,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ] else ...[
-            const SizedBox(height: AppSpacing.md),
-            TextFormField(
-              decoration: InputDecoration(
-                hintText: 'Enter delivery address',
-                prefixIcon: const Icon(Icons.location_on_outlined),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              maxLines: 2,
-              onChanged: (value) => _deliveryAddress = value,
-              validator: (value) {
-                if (!_useCurrentLocation &&
-                    (value == null || value.isEmpty)) {
-                  return 'Please enter delivery address';
-                }
-                return null;
-              },
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildToggleOption({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.all(AppSpacing.md),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? AppColors.primary.withValues(alpha: 0.1)
-                : AppColors.backgroundLight,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isSelected ? AppColors.primary : AppColors.border,
-              width: isSelected ? 2 : 1,
-            ),
-          ),
-          child: Column(
-            children: [
-              Icon(
-                icon,
-                color: isSelected ? AppColors.primary : AppColors.textSecondary,
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                title,
-                style: AppTypography.labelMedium.copyWith(
-                  color: isSelected ? AppColors.primary : AppColors.textPrimary,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              Text(
-                subtitle,
-                style: AppTypography.caption.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
+      child: TslLocationPicker(
+        location: _selectedLocation,
+        errorText: _locationError,
+        isRequired: true,
+        onLocationChanged: (location) {
+          setState(() {
+            _selectedLocation = location;
+            _locationError = null;
+          });
+        },
+        onGetCurrentLocation: _getCurrentLocation,
+        helperText: 'Pick pin on map and keep address filled before submit.',
       ),
     );
   }
 
   Widget _buildDateSection() {
+    final colorScheme = Theme.of(context).colorScheme;
     return _buildSectionCard(
       title: AppLocalizations.of(context).expectedDelivery,
       icon: Icons.calendar_today,
@@ -528,25 +582,19 @@ class _MistriRequestOrderScreenState extends State<MistriRequestOrderScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Quick date options
-          Row(
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
             children: [
-              Expanded(
-                child: _buildDateChip('Tomorrow', 1),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: _buildDateChip('In 2 Days', 2),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: _buildDateChip('In 3 Days', 3),
-              ),
+              _buildDateChip('Tomorrow', 1),
+              _buildDateChip('In 2 Days', 2),
+              _buildDateChip('In 3 Days', 3),
             ],
           ),
           const SizedBox(height: AppSpacing.md),
           // Custom date picker
           Material(
-            color: AppColors.backgroundLight,
+            color: colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(12),
             child: InkWell(
               onTap: () => _selectDate(),
@@ -567,7 +615,7 @@ class _MistriRequestOrderScreenState extends State<MistriRequestOrderScreen>
                           Text(
                             'Selected Date',
                             style: AppTypography.caption.copyWith(
-                              color: AppColors.textSecondary,
+                              color: colorScheme.onSurfaceVariant,
                             ),
                           ),
                           Text(
@@ -581,7 +629,7 @@ class _MistriRequestOrderScreenState extends State<MistriRequestOrderScreen>
                     ),
                     Icon(
                       Icons.edit,
-                      color: AppColors.textSecondary,
+                      color: colorScheme.onSurfaceVariant,
                       size: 20,
                     ),
                   ],
@@ -595,6 +643,7 @@ class _MistriRequestOrderScreenState extends State<MistriRequestOrderScreen>
   }
 
   Widget _buildDateChip(String label, int daysFromNow) {
+    final colorScheme = Theme.of(context).colorScheme;
     final date = DateTime.now().add(Duration(days: daysFromNow));
     final isSelected = _expectedDate.day == date.day &&
         _expectedDate.month == date.month &&
@@ -603,7 +652,7 @@ class _MistriRequestOrderScreenState extends State<MistriRequestOrderScreen>
     return Material(
       color: isSelected
           ? AppColors.primary.withValues(alpha: 0.1)
-          : AppColors.backgroundLight,
+          : colorScheme.surfaceContainerHighest,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: () => setState(() => _expectedDate = date),
@@ -616,13 +665,13 @@ class _MistriRequestOrderScreenState extends State<MistriRequestOrderScreen>
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isSelected ? AppColors.primary : AppColors.border,
+              color: isSelected ? AppColors.primary : colorScheme.outline,
             ),
           ),
           child: Text(
             label,
             style: AppTypography.labelMedium.copyWith(
-              color: isSelected ? AppColors.primary : AppColors.textPrimary,
+              color: isSelected ? AppColors.primary : colorScheme.onSurface,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
             ),
             textAlign: TextAlign.center,
@@ -654,65 +703,66 @@ class _MistriRequestOrderScreenState extends State<MistriRequestOrderScreen>
   }
 
   Widget _buildUrgencySection() {
+    final colorScheme = Theme.of(context).colorScheme;
     return _buildSectionCard(
       title: AppLocalizations.of(context).requestOrderUrgency,
       icon: Icons.speed,
-      child: Row(
+      child: Wrap(
+        spacing: AppSpacing.sm,
+        runSpacing: AppSpacing.sm,
         children: UrgencyLevel.values.map((urgency) {
           final isSelected = _urgency == urgency;
-          return Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(
-                right: urgency != UrgencyLevel.asap ? AppSpacing.sm : 0,
-              ),
-              child: Material(
-                color: isSelected
-                    ? urgency.color.withValues(alpha: 0.1)
-                    : AppColors.backgroundLight,
+          return SizedBox(
+            width: 120,
+            child: Material(
+              color: isSelected
+                  ? urgency.color.withValues(alpha: 0.1)
+                  : colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(12),
+              child: InkWell(
+                onTap: () => setState(() => _urgency = urgency),
                 borderRadius: BorderRadius.circular(12),
-                child: InkWell(
-                  onTap: () => setState(() => _urgency = urgency),
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md,
-                      vertical: AppSpacing.md,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.md,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isSelected ? urgency.color : colorScheme.outline,
+                      width: isSelected ? 2 : 1,
                     ),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color:
-                            isSelected ? urgency.color : AppColors.border,
-                        width: isSelected ? 2 : 1,
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(
+                        urgency == UrgencyLevel.normal
+                            ? Icons.schedule
+                            : urgency == UrgencyLevel.urgent
+                                ? Icons.priority_high
+                                : Icons.flash_on,
+                        color: isSelected
+                            ? urgency.color
+                            : colorScheme.onSurfaceVariant,
+                        size: 24,
                       ),
-                    ),
-                    child: Column(
-                      children: [
-                        Icon(
-                          urgency == UrgencyLevel.normal
-                              ? Icons.schedule
-                              : urgency == UrgencyLevel.urgent
-                                  ? Icons.priority_high
-                                  : Icons.flash_on,
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        urgency.displayName,
+                        style: AppTypography.labelMedium.copyWith(
                           color: isSelected
                               ? urgency.color
-                              : AppColors.textSecondary,
-                          size: 24,
+                              : colorScheme.onSurface,
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.normal,
                         ),
-                        const SizedBox(height: AppSpacing.xs),
-                        Text(
-                          urgency.displayName,
-                          style: AppTypography.labelMedium.copyWith(
-                            color: isSelected
-                                ? urgency.color
-                                : AppColors.textPrimary,
-                            fontWeight: isSelected
-                                ? FontWeight.w600
-                                : FontWeight.normal,
-                          ),
-                        ),
-                      ],
-                    ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -793,10 +843,11 @@ class _MistriRequestOrderScreenState extends State<MistriRequestOrderScreen>
     required IconData icon,
     required Widget child,
   }) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
       decoration: BoxDecoration(
-        color: AppColors.cardWhite,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         boxShadow: AppShadows.xs,
       ),
@@ -836,10 +887,11 @@ class _MistriRequestOrderScreenState extends State<MistriRequestOrderScreen>
   }
 
   Widget _buildBottomBar() {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: AppColors.cardWhite,
+        color: colorScheme.surface,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
@@ -859,7 +911,7 @@ class _MistriRequestOrderScreenState extends State<MistriRequestOrderScreen>
                 child: Container(
                   padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(
-                    color: AppColors.backgroundLight,
+                    color: colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
@@ -930,8 +982,9 @@ class _SuccessDialogState extends State<_SuccessDialog>
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Dialog(
-      backgroundColor: AppColors.cardWhite,
+      backgroundColor: colorScheme.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
       ),
@@ -975,7 +1028,7 @@ class _SuccessDialogState extends State<_SuccessDialog>
             Text(
               'Your order request has been sent to the dealer. You will be notified once it\'s approved.',
               style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.textSecondary,
+                color: colorScheme.onSurfaceVariant,
               ),
               textAlign: TextAlign.center,
             ),

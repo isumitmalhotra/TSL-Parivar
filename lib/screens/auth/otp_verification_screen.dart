@@ -28,7 +28,7 @@ class OtpVerificationScreen extends StatefulWidget {
   final VoidCallback? onBack;
 
   /// Callback to resend OTP
-  final VoidCallback? onResend;
+  final Future<bool> Function()? onResend;
 
   const OtpVerificationScreen({
     super.key,
@@ -183,37 +183,65 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
       final l10n = AppLocalizations.of(context);
       setState(() {
         _isVerifying = false;
-        _errorText = authProvider.errorMessage ?? l10n.otpError;
+        _errorText = _readableOtpError(
+          authProvider.errorMessage ?? l10n.otpError,
+        );
       });
       _shakeController.forward(from: 0);
     }
   }
 
+  String _readableOtpError(String raw) {
+    final lower = raw.toLowerCase();
+    if (lower.contains('missing-client-identifier') ||
+        lower.contains('app verification failed')) {
+      return 'App verification failed. Use Play Internal/Store build and try again.';
+    }
+    if (lower.contains('quota') || lower.contains('too many')) {
+      return 'Too many OTP attempts. Please wait and try again later.';
+    }
+    if (lower.contains('network')) {
+      return 'Network issue detected. Check connection and retry.';
+    }
+    if (lower.contains('expired') || lower.contains('session')) {
+      return 'OTP expired. Please resend and enter the latest code.';
+    }
+    if (lower.contains('invalid')) {
+      return 'Invalid OTP. Please check the code and try again.';
+    }
+    return raw;
+  }
+
   Future<void> _resendOtp() async {
-    if (_resendCountdown > 0) return;
+    final authProvider = context.read<AuthProvider>();
+    final providerCooldown = authProvider.otpCooldownSecondsRemaining;
+    if (_resendCountdown > 0 || providerCooldown > 0) return;
     debugPrint('🧪[OTP:UI] resend tapped phone=${widget.phoneNumber}');
 
-    final authProvider = context.read<AuthProvider>();
-
-    // Resend OTP using the phone number stored in AuthProvider
-    if (authProvider.phoneNumber != null) {
-      await authProvider.sendOtp(authProvider.phoneNumber!);
+    bool success;
+    if (widget.onResend != null) {
+      success = await widget.onResend!.call();
+    } else if (authProvider.phoneNumber != null) {
+      success = await authProvider.sendOtp(authProvider.phoneNumber!);
+    } else {
+      success = false;
     }
 
-    widget.onResend?.call();
-    _startResendTimer();
+    if (success) {
+      _startResendTimer();
+    }
 
     if (mounted) {
       final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            authProvider.errorMessage ?? l10n.otpSentTo(widget.phoneNumber),
+            success
+                ? l10n.otpSentTo(widget.phoneNumber)
+                : _readableOtpError(authProvider.errorMessage ?? l10n.otpError),
           ),
           behavior: SnackBarBehavior.floating,
-          backgroundColor: authProvider.errorMessage != null
-              ? AppColors.error
-              : AppColors.success,
+          backgroundColor: success ? AppColors.success : AppColors.error,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       );
@@ -239,34 +267,29 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
           // Animated background
           _buildAnimatedBackground(size),
 
-          // Success overlay
-          if (_isSuccess) _buildSuccessOverlay(),
-
           // Content
           SafeArea(
-            child: SingleChildScrollView(
-              physics: const ClampingScrollPhysics(),
-              child: SizedBox(
-                height: size.height - MediaQuery.of(context).padding.top,
-                child: Column(
-                  children: [
-                    // Header
-                    _buildHeader(),
-
-                    const Spacer(flex: 1),
-
-                    // Main content
-                    _buildMainContent(l10n),
-
-                    const Spacer(flex: 2),
-
-                    // Footer
-                    _buildFooter(l10n),
-
-                    const SizedBox(height: AppSpacing.xl),
-                  ],
-                ),
-              ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  physics: const ClampingScrollPhysics(),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                    child: IntrinsicHeight(
+                      child: Column(
+                        children: [
+                          _buildHeader(),
+                          const SizedBox(height: AppSpacing.md),
+                          _buildMainContent(l10n),
+                          const Spacer(),
+                          _buildFooter(l10n),
+                          const SizedBox(height: AppSpacing.xl),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -275,6 +298,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
   }
 
   Widget _buildAnimatedBackground(Size size) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return AnimatedBuilder(
       animation: _backgroundController,
       builder: (context, child) {
@@ -283,16 +307,23 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
         return Container(
           width: size.width,
           height: size.height,
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [
-                Color(0xFFFFFFFF), // White
-                Color(0xFFF0FFF0), // Very light green
-                Color(0xFFE8F5E9), // Light green
-                Color(0xFFC8E6C9), // Soft green
-              ],
+              colors: isDark
+                  ? const [
+                      Color(0xFF101512),
+                      Color(0xFF142019),
+                      Color(0xFF1B2A22),
+                      Color(0xFF23352A),
+                    ]
+                  : const [
+                      Color(0xFFFFFFFF),
+                      Color(0xFFF0FFF0),
+                      Color(0xFFE8F5E9),
+                      Color(0xFFC8E6C9),
+                    ],
               stops: [0.0, 0.3, 0.6, 1.0],
             ),
           ),
@@ -333,42 +364,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
                 ),
               ),
             ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildSuccessOverlay() {
-    return AnimatedBuilder(
-      animation: _successController,
-      builder: (context, child) {
-        return Container(
-          color: Colors.white.withValues(alpha: _successController.value * 0.9),
-          child: Center(
-            child: Transform.scale(
-              scale: _successController.value,
-              child: Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.success,
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.success.withValues(alpha: 0.4),
-                      blurRadius: 30,
-                      spreadRadius: 10,
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.check,
-                  color: Colors.white,
-                  size: 60,
-                ),
-              ),
-            ),
           ),
         );
       },
@@ -442,6 +437,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
                 ),
 
                 const SizedBox(height: AppSpacing.md),
+
+                if (_isSuccess) ...[
+                  _buildInlineSuccessTick(),
+                  const SizedBox(height: AppSpacing.md),
+                ],
 
                 // Subtitle
                 Text(
@@ -536,84 +536,87 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
 
         return Transform.translate(
           offset: Offset(shakeOffset, 0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(_otpLength, (index) {
-              final isFilled = _controllers[index].text.isNotEmpty;
-              final isFocused = _focusNodes[index].hasFocus;
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(_otpLength, (index) {
+                final isFilled = _controllers[index].text.isNotEmpty;
+                final isFocused = _focusNodes[index].hasFocus;
 
-              return Padding(
-                padding: EdgeInsets.only(
-                  right: index < _otpLength - 1 ? AppSpacing.sm : 0,
-                ),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  width: 48,
-                  height: 56,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: isFilled
-                        ? AppColors.primary.withValues(alpha: 0.1)
-                        : Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: _errorText != null
-                          ? AppColors.error
-                          : isFocused
-                              ? AppColors.primary
-                              : isFilled
-                                  ? AppColors.primary.withValues(alpha: 0.3)
-                                  : AppColors.border,
-                      width: isFocused ? 2 : 1.5,
-                    ),
-                    boxShadow: [
-                      if (isFocused)
-                        BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.2),
-                          blurRadius: 10,
-                          spreadRadius: 1,
-                        )
-                      else
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                    ],
+                return Padding(
+                  padding: EdgeInsets.only(
+                    right: index < _otpLength - 1 ? AppSpacing.sm : 0,
                   ),
-                  child: KeyboardListener(
-                    focusNode: FocusNode(),
-                    onKeyEvent: (event) => _onKeyPressed(index, event),
-                    child: Center(
-                      child: TextField(
-                        controller: _controllers[index],
-                        focusNode: _focusNodes[index],
-                        textAlign: TextAlign.center,
-                        textAlignVertical: TextAlignVertical.center,
-                        keyboardType: TextInputType.number,
-                        maxLength: 1,
-                        style: AppTypography.h2.copyWith(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 24,
-                          height: 1.0,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: 48,
+                    height: 56,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: isFilled
+                          ? AppColors.primary.withValues(alpha: 0.1)
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: _errorText != null
+                            ? AppColors.error
+                            : isFocused
+                                ? AppColors.primary
+                                : isFilled
+                                    ? AppColors.primary.withValues(alpha: 0.3)
+                                    : AppColors.border,
+                        width: isFocused ? 2 : 1.5,
+                      ),
+                      boxShadow: [
+                        if (isFocused)
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.2),
+                            blurRadius: 10,
+                            spreadRadius: 1,
+                          )
+                        else
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                      ],
+                    ),
+                    child: KeyboardListener(
+                      focusNode: FocusNode(),
+                      onKeyEvent: (event) => _onKeyPressed(index, event),
+                      child: Center(
+                        child: TextField(
+                          controller: _controllers[index],
+                          focusNode: _focusNodes[index],
+                          textAlign: TextAlign.center,
+                          textAlignVertical: TextAlignVertical.center,
+                          keyboardType: TextInputType.number,
+                          maxLength: 1,
+                          style: AppTypography.h2.copyWith(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 24,
+                            height: 1.0,
+                          ),
+                          decoration: const InputDecoration(
+                            counterText: '',
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.zero,
+                            isDense: true,
+                          ),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          onChanged: (value) => _onOtpChanged(index, value),
                         ),
-                        decoration: const InputDecoration(
-                          counterText: '',
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.zero,
-                          isDense: true,
-                        ),
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                        ],
-                        onChanged: (value) => _onOtpChanged(index, value),
                       ),
                     ),
                   ),
-                ),
-              );
-            }),
+                );
+              }),
+            ),
           ),
         );
       },
@@ -628,21 +631,54 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.error_outline, color: AppColors.error, size: 20),
           const SizedBox(width: AppSpacing.sm),
-          Text(
-            _errorText!,
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.error),
+          Expanded(
+            child: Text(
+              _errorText!,
+              style: AppTypography.bodyMedium.copyWith(color: AppColors.error),
+            ),
           ),
         ],
       ),
     );
   }
 
+  Widget _buildInlineSuccessTick() {
+    return AnimatedBuilder(
+      animation: _successController,
+      builder: (context, child) {
+        return Opacity(
+          opacity: _successController.value,
+          child: Transform.scale(
+            scale: 0.8 + (_successController.value * 0.2),
+            child: Container(
+              width: 68,
+              height: 68,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.success,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.success.withValues(alpha: 0.3),
+                    blurRadius: 18,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: const Icon(Icons.check, color: Colors.white, size: 36),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildResendSection(AppLocalizations l10n) {
-    final canResend = _resendCountdown <= 0;
+    final providerCooldown = context.watch<AuthProvider>().otpCooldownSecondsRemaining;
+    final remaining = _resendCountdown > providerCooldown ? _resendCountdown : providerCooldown;
+    final canResend = remaining <= 0;
 
     return Column(
       children: [
@@ -664,7 +700,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
             child: Text(
               canResend
                   ? l10n.otpResend
-                  : l10n.otpResendCountdown(_resendCountdown),
+                  : l10n.otpResendCountdown(remaining),
             ),
           ),
         ),

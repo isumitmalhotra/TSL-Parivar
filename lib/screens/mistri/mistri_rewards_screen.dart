@@ -31,8 +31,33 @@ class _MistriRewardsScreenState extends State<MistriRewardsScreen>
   late AnimationController _cardAnimationController;
   late AnimationController _floatController;
 
-  MistriUser get _user =>
-      context.read<UserProvider>().mistriData ?? MockMistriData.mockUser;
+  MistriUser get _user {
+    final userProvider = context.watch<UserProvider>();
+    final profile = userProvider.currentUser;
+    return userProvider.mistriData ??
+        MistriUser(
+          id: profile?.id ?? '',
+          name: profile?.name ?? 'Mistri',
+          phone: profile?.phone ?? '',
+          imageUrl: profile?.imageUrl,
+          specialization: 'General',
+          approvedPoints: 0,
+          pendingPoints: 0,
+          rank: 'Bronze',
+          badgeIcon: '🥉',
+          totalDeliveries: 0,
+          successRate: 0,
+          assignedDealer: const DealerModel(
+            id: '',
+            name: 'Not Assigned',
+            shopName: 'No Dealer',
+            phone: '',
+            address: '',
+            rating: 0,
+            totalDeliveries: 0,
+          ),
+        );
+  }
   List<RewardTransaction> get _transactions =>
       context.read<RewardsProvider>().transactions;
 
@@ -81,7 +106,7 @@ class _MistriRewardsScreenState extends State<MistriRewardsScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) {
           return [
@@ -90,7 +115,7 @@ class _MistriRewardsScreenState extends State<MistriRewardsScreen>
               expandedHeight: 100,
               floating: false,
               pinned: true,
-              backgroundColor: AppColors.cardWhite,
+              backgroundColor: Theme.of(context).colorScheme.surface,
               elevation: innerBoxIsScrolled ? 2 : 0,
               flexibleSpace: FlexibleSpaceBar(
                 titlePadding: const EdgeInsets.only(left: 16, bottom: 16),
@@ -441,7 +466,7 @@ class _MistriRewardsScreenState extends State<MistriRewardsScreen>
   void _showRedeemSheet() {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: AppColors.cardWhite,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -740,13 +765,12 @@ class _RedeemSheetState extends State<_RedeemSheet> {
             // Header
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Wrap(
+                spacing: AppSpacing.md,
+                runSpacing: AppSpacing.sm,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  Text(
-                    'Redeem Points',
-                    style: AppTypography.h2,
-                  ),
+                  Text('Redeem Points', style: AppTypography.h2),
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.md,
@@ -757,6 +781,7 @@ class _RedeemSheetState extends State<_RedeemSheet> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
                           Icons.star,
@@ -827,67 +852,81 @@ class _RedeemSheetState extends State<_RedeemSheet> {
             borderRadius: BorderRadius.circular(16),
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: option.color.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Icon(
-                      option.icon,
-                      color: option.color,
-                      size: 28,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          option.title,
-                          style: AppTypography.labelLarge.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
+                  Row(
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: option.color.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(16),
                         ),
-                        const SizedBox(height: AppSpacing.xxs),
-                        Text(
-                          option.description,
-                          style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md,
-                      vertical: AppSpacing.sm,
-                    ),
-                    decoration: BoxDecoration(
-                      color: option.color.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.star,
-                          size: 14,
+                        child: Icon(
+                          option.icon,
                           color: option.color,
+                          size: 28,
                         ),
-                        const SizedBox(width: AppSpacing.xxs),
-                        Text(
-                          '${option.points}',
-                          style: AppTypography.labelMedium.copyWith(
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              option.title,
+                              style: AppTypography.labelLarge.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: AppSpacing.xxs),
+                            Text(
+                              option.description,
+                              style: AppTypography.bodySmall.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md,
+                        vertical: AppSpacing.sm,
+                      ),
+                      decoration: BoxDecoration(
+                        color: option.color.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.star,
+                            size: 14,
                             color: option.color,
-                            fontWeight: FontWeight.bold,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: AppSpacing.xxs),
+                          Text(
+                            '${option.points}',
+                            style: AppTypography.labelMedium.copyWith(
+                              color: option.color,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],

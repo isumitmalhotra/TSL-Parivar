@@ -40,7 +40,7 @@ class _ProductCatalogScreenState extends State<ProductCatalogScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: CustomScrollView(
         slivers: [
           _buildAppBar(),
@@ -79,7 +79,7 @@ class _ProductCatalogScreenState extends State<ProductCatalogScreen>
       expandedHeight: 140,
       floating: false,
       pinned: true,
-      backgroundColor: AppColors.primary,
+      backgroundColor: Theme.of(context).colorScheme.primary,
       flexibleSpace: FlexibleSpaceBar(
         background: Container(
           decoration: const BoxDecoration(
@@ -176,7 +176,7 @@ class _ProductCatalogScreenState extends State<ProductCatalogScreen>
         label: Text(label),
         selected: isSelected,
         onSelected: (_) => setState(() => _selectedCategory = category),
-        backgroundColor: AppColors.cardWhite,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         selectedColor: AppColors.primary.withValues(alpha: 0.15),
         checkmarkColor: AppColors.primary,
         labelStyle: TextStyle(
