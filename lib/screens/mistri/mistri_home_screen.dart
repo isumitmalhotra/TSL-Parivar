@@ -246,12 +246,16 @@ class _MistriHomeScreenState extends State<MistriHomeScreen>
               ),
             ),
             const SizedBox(width: 12),
-            const Text(
-              'TSL Parivar',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
+            const Expanded(
+              child: Text(
+                'TSL Parivar',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
@@ -461,6 +465,8 @@ class _MistriHomeScreenState extends State<MistriHomeScreen>
                 style: AppTypography.caption.copyWith(
                   color: Colors.white.withValues(alpha: 0.8),
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
@@ -725,6 +731,8 @@ class _MistriHomeScreenState extends State<MistriHomeScreen>
                 style: AppTypography.labelMedium.copyWith(
                   color: color,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
@@ -1073,6 +1081,8 @@ class _MistriHomeScreenState extends State<MistriHomeScreen>
                         fontWeight: FontWeight.w600,
                         height: 1.2,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),

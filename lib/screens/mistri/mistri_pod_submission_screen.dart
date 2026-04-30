@@ -96,14 +96,31 @@ class _MistriPodSubmissionScreenState extends State<MistriPodSubmissionScreen>
     if (!_canSubmit) return;
 
     setState(() => _isSubmitting = true);
+    final provider = context.read<DeliveryProvider>();
+    final success = await provider.submitPod(
+      deliveryId: _delivery.id,
+      deliveredQuantity: _deliveredQuantity,
+      photoUrls: _capturedPhotos,
+      latitude: _delivery.latitude,
+      longitude: _delivery.longitude,
+      issueReported: _selectedIssue,
+      notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+    );
 
-    // Simulate submission
-    await Future<void>.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
 
-    if (mounted) {
-      setState(() => _isSubmitting = false);
+    setState(() => _isSubmitting = false);
+    if (success) {
       _showSuccessDialog();
+      return;
     }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(provider.errorMessage ?? 'Failed to submit POD. Please try again.'),
+        backgroundColor: AppColors.error,
+      ),
+    );
   }
 
   void _showSuccessDialog() {

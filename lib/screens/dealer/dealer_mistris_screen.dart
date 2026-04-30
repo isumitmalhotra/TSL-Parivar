@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../design_system/design_system.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/base_model.dart';
 import '../../models/dealer_models.dart';
+import '../../navigation/app_router.dart';
 import '../../providers/dealer_data_provider.dart';
 import '../../services/url_launcher_service.dart';
 import '../../widgets/widgets.dart';
@@ -459,9 +461,9 @@ class _DealerMistrisScreenState extends State<DealerMistrisScreen>
             child: _MistriCard(
               mistri: mistris[index],
               onTap: () => _showMistriDetails(mistris[index]),
-              onCall: () {},
-              onMessage: () {},
-              onAssign: () {},
+              onCall: () => _callMistri(mistris[index]),
+              onMessage: () => _messageMistri(mistris[index]),
+              onAssign: () => _assignDeliveryToMistri(mistris[index]),
             ),
           );
         },
@@ -489,7 +491,61 @@ class _DealerMistrisScreenState extends State<DealerMistrisScreen>
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (context) => _MistriDetailsSheet(mistri: mistri),
+      builder: (context) => _MistriDetailsSheet(
+        mistri: mistri,
+        onCall: () => _callMistri(mistri),
+        onMessage: () => _messageMistri(mistri),
+        onAssign: () => _assignDeliveryToMistri(mistri),
+      ),
+    );
+  }
+
+  Future<void> _callMistri(DealerMistriModel mistri) async {
+    final launched = await UrlLauncherService.launchPhone(mistri.phone);
+    if (!mounted || launched) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Unable to open phone dialer.')),
+    );
+  }
+
+  Future<void> _messageMistri(DealerMistriModel mistri) async {
+    final launched = await UrlLauncherService.launchSms(
+      mistri.phone,
+      body: 'Hello ${mistri.name}, please check your TSL Parivar tasks.',
+    );
+    if (!mounted || launched) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Unable to open messaging app.')),
+    );
+  }
+
+  void _assignDeliveryToMistri(DealerMistriModel mistri) {
+    if (mistri.status != MistriStatus.active) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Only active mistris can be assigned deliveries.')),
+      );
+      return;
+    }
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Assign Delivery'),
+        content: Text('Open orders tab to assign delivery for ${mistri.name}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              context.go('${AppRoutes.dealerHome}?tab=orders');
+            },
+            child: const Text('Open Orders'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -596,26 +652,31 @@ class _MistriCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _buildStatItem(
-                        icon: Icons.local_shipping,
-                        value: '${mistri.completedDeliveries}',
-                        label: 'Deliveries',
+                      Expanded(
+                        child: _buildStatItem(
+                          icon: Icons.local_shipping,
+                          value: '${mistri.completedDeliveries}',
+                          label: 'Deliveries',
+                        ),
                       ),
                       _buildDivider(),
-                      _buildStatItem(
-                        icon: Icons.trending_up,
-                        value: '${mistri.successRate.toStringAsFixed(1)}%',
-                        label: 'Success',
-                        valueColor: _getSuccessColor(),
+                      Expanded(
+                        child: _buildStatItem(
+                          icon: Icons.trending_up,
+                          value: '${mistri.successRate.toStringAsFixed(1)}%',
+                          label: 'Success',
+                          valueColor: _getSuccessColor(),
+                        ),
                       ),
                       _buildDivider(),
-                      _buildStatItem(
-                        icon: Icons.star,
-                        value: '${mistri.rewardPoints}',
-                        label: 'Points',
-                        valueColor: AppColors.secondary,
+                      Expanded(
+                        child: _buildStatItem(
+                          icon: Icons.star,
+                          value: '${mistri.rewardPoints}',
+                          label: 'Points',
+                          valueColor: AppColors.secondary,
+                        ),
                       ),
                     ],
                   ),
@@ -1000,8 +1061,16 @@ class _AddMistriSheetState extends State<_AddMistriSheet> {
 /// Mistri details bottom sheet
 class _MistriDetailsSheet extends StatelessWidget {
   final DealerMistriModel mistri;
+  final VoidCallback onCall;
+  final VoidCallback onMessage;
+  final VoidCallback onAssign;
 
-  const _MistriDetailsSheet({required this.mistri});
+  const _MistriDetailsSheet({
+    required this.mistri,
+    required this.onCall,
+    required this.onMessage,
+    required this.onAssign,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1117,8 +1186,16 @@ class _MistriDetailsSheet extends StatelessWidget {
                       child: TslSecondaryButton(
                         label: 'Call',
                         leadingIcon: Icons.call,
-                        onPressed: () =>
-                            UrlLauncherService.launchPhone(mistri.phone),
+                        onPressed: onCall,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    SizedBox(
+                      width: double.infinity,
+                      child: TslSecondaryButton(
+                        label: 'Message',
+                        leadingIcon: Icons.message,
+                        onPressed: onMessage,
                       ),
                     ),
                     const SizedBox(height: AppSpacing.md),
@@ -1128,7 +1205,7 @@ class _MistriDetailsSheet extends StatelessWidget {
                         label: 'Assign Delivery',
                         leadingIcon: Icons.assignment,
                         onPressed: mistri.status == MistriStatus.active
-                            ? () {}
+                            ? onAssign
                             : null,
                       ),
                     ),

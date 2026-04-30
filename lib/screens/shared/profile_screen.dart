@@ -240,6 +240,28 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
+  Future<void> _openPrivacyPolicy() async {
+    try {
+      context.push(AppRoutes.legalPrivacy);
+    } catch (_) {
+      await _launchAction(
+        UrlLauncherService.launchPrivacyPolicy,
+        'Unable to open Privacy Policy right now.',
+      );
+    }
+  }
+
+  Future<void> _openTermsOfService() async {
+    try {
+      context.push(AppRoutes.legalTerms);
+    } catch (_) {
+      await _launchAction(
+        UrlLauncherService.launchTermsOfService,
+        'Unable to open Terms of Service right now.',
+      );
+    }
+  }
+
   Color get _roleColor {
     switch (widget.userRole) {
       case UserRole.mistri:
@@ -561,59 +583,75 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Widget _buildStatsSection() {
     final l10n = AppLocalizations.of(context);
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: _gradientColors,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: _roleColor.withValues(alpha: 0.4),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final textScale = MediaQuery.textScalerOf(context).scale(1.0);
+        final keepSingleRow = constraints.maxWidth >= 320 && textScale <= 1.2;
+
+        final statItems = [
+          _buildStatItem(
+            Icons.star_outline,
+            '${_profile.rewardPoints}',
+            l10n.pointsEarned,
           ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildStatItem(
-              Icons.star_outline,
-              '${_profile.rewardPoints}',
-              l10n.pointsEarned,
+          _buildStatItem(
+            Icons.local_shipping_outlined,
+            _getStatValue1(),
+            _getStatLabel1(l10n),
+          ),
+          _buildStatItem(
+            Icons.trending_up,
+            _getStatValue2(),
+            _getStatLabel2(l10n),
+          ),
+        ];
+
+        final fallbackCardWidth = constraints.maxWidth >= 560
+            ? (constraints.maxWidth - (AppSpacing.md * 2)) / 3
+            : (constraints.maxWidth - AppSpacing.md) / 2;
+
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: _gradientColors,
             ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: _roleColor.withValues(alpha: 0.4),
+                blurRadius: 15,
+                offset: const Offset(0, 5),
+              ),
+            ],
           ),
-          Container(
-            width: 1,
-            height: 50,
-            color: Colors.white.withValues(alpha: 0.3),
-          ),
-          Expanded(
-            child: _buildStatItem(
-              Icons.local_shipping_outlined,
-              _getStatValue1(),
-              _getStatLabel1(l10n),
-            ),
-          ),
-          Container(
-            width: 1,
-            height: 50,
-            color: Colors.white.withValues(alpha: 0.3),
-          ),
-          Expanded(
-            child: _buildStatItem(
-              Icons.trending_up,
-              _getStatValue2(),
-              _getStatLabel2(l10n),
-            ),
-          ),
-        ],
-      ),
+          child: keepSingleRow
+              ? Row(
+                  children: [
+                    for (var i = 0; i < statItems.length; i++) ...[
+                      Expanded(child: Center(child: statItems[i])),
+                      if (i < statItems.length - 1)
+                        const SizedBox(width: AppSpacing.md),
+                    ],
+                  ],
+                )
+              : Wrap(
+                  spacing: AppSpacing.md,
+                  runSpacing: AppSpacing.md,
+                  children: statItems
+                      .map(
+                        (item) => SizedBox(
+                          width: fallbackCardWidth,
+                          child: item,
+                        ),
+                      )
+                      .toList(),
+                ),
+        );
+      },
     );
   }
 
@@ -692,29 +730,41 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Widget _buildQuickActions() {
     final l10n = AppLocalizations.of(context);
-    return Container(
-      margin: const EdgeInsets.all(AppSpacing.lg),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildQuickActionCard(
-              Icons.badge_outlined,
-              l10n.profileIdCard,
-              l10n.profileViewTslId,
-              () => _showIDCard(),
-            ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cardWidth =
+            constraints.maxWidth >= 520
+                ? (constraints.maxWidth - AppSpacing.md) / 2
+                : constraints.maxWidth;
+
+        return Container(
+          margin: const EdgeInsets.all(AppSpacing.lg),
+          child: Wrap(
+            spacing: AppSpacing.md,
+            runSpacing: AppSpacing.md,
+            children: [
+              SizedBox(
+                width: cardWidth,
+                child: _buildQuickActionCard(
+                  Icons.badge_outlined,
+                  l10n.profileIdCard,
+                  l10n.profileViewTslId,
+                  () => _showIDCard(),
+                ),
+              ),
+              SizedBox(
+                width: cardWidth,
+                child: _buildQuickActionCard(
+                  Icons.history,
+                  l10n.profileActivity,
+                  l10n.tabHistory,
+                  () => context.push(AppRoutes.notifications),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: _buildQuickActionCard(
-              Icons.history,
-              l10n.profileActivity,
-              l10n.tabHistory,
-              () {},
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -827,13 +877,13 @@ class _ProfileScreenState extends State<ProfileScreen>
             Icons.privacy_tip_outlined,
             l10n.privacyPolicy,
             '',
-            onTap: () => context.push(AppRoutes.legalPrivacy),
+            onTap: () => unawaited(_openPrivacyPolicy()),
           ),
           _buildSettingsItem(
             Icons.description_outlined,
             l10n.termsOfService,
             '',
-            onTap: () => context.push(AppRoutes.legalTerms),
+            onTap: () => unawaited(_openTermsOfService()),
             isLast: true,
           ),
         ],

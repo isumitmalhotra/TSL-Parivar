@@ -137,12 +137,16 @@ class _ProductCatalogScreenState extends State<ProductCatalogScreen>
           children: [
             Icon(Icons.inventory_2, color: Colors.white, size: 22),
             const SizedBox(width: 8),
-            const Text(
+            const Flexible(
+              child: Text(
               'Our Products',
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
                 fontSize: 20,
+              ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],

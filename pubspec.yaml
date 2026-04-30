@@ -1,7 +1,7 @@
 name: tsl
 description: "TSL Parivar - Construction Material Supply Chain Management App"
 publish_to: 'none'
-version: 1.0.4+5
+version: 1.0.6+8
 
 environment:
   sdk: ^3.9.2

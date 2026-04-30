@@ -7,6 +7,8 @@ import '../../design_system/design_system.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/architect_models.dart';
 import '../../providers/user_provider.dart' show UserProvider;
+import '../../services/firestore_service.dart';
+import '../../services/url_launcher_service.dart';
 import '../../widgets/widgets.dart';
 
 /// Architect Rewards Screen
@@ -29,6 +31,12 @@ class _ArchitectRewardsScreenState extends State<ArchitectRewardsScreen>
   late AnimationController _floatController;
 
   final List<ArchitectRewardTransaction> _transactions = [];
+  int _pointsBalance = 0;
+  bool _isLoading = false;
+  String? _errorMessage;
+  String? _loadedUserId;
+
+  int get _effectivePoints => _pointsBalance > 0 ? _pointsBalance : _user.rewardPoints;
 
   ArchitectUser get _user {
     final profile = context.watch<UserProvider>().currentUser;
@@ -53,6 +61,60 @@ class _ArchitectRewardsScreenState extends State<ArchitectRewardsScreen>
       duration: const Duration(milliseconds: 3000),
       vsync: this,
     )..repeat(reverse: true);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final userId = context.watch<UserProvider>().currentUser?.id;
+    if (userId != null && userId.isNotEmpty && _loadedUserId != userId) {
+      _loadedUserId = userId;
+      _loadRewards(userId);
+    }
+  }
+
+  Future<void> _loadRewards(String userId) async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final rewardsDoc = await FirestoreService.rewardsCollection.doc(userId).get();
+      final historySnapshot = await FirestoreService.rewardsCollection
+          .doc(userId)
+          .collection('history')
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      final transactions = historySnapshot.docs
+          .map((doc) => ArchitectRewardTransaction.fromMap(doc.id, doc.data()))
+          .toList();
+
+      if (!mounted) return;
+      setState(() {
+        final rawPoints = rewardsDoc.data()?['points'];
+        _pointsBalance = rawPoints is num ? rawPoints.toInt() : 0;
+        _transactions
+          ..clear()
+          ..addAll(transactions);
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Unable to load rewards data.';
+      });
+    }
+  }
+
+  Future<void> _handleRefer() async {
+    final ok = await UrlLauncherService.launchShareApp();
+    if (!mounted || ok) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Unable to open share right now.')),
+    );
   }
 
   @override
@@ -188,7 +250,7 @@ class _ArchitectRewardsScreenState extends State<ArchitectRewardsScreen>
                         child: _buildQuickAction(
                           icon: Icons.person_add,
                           label: 'Refer',
-                          onTap: () {},
+                          onTap: () => _handleRefer(),
                         ),
                       ),
                       const SizedBox(width: AppSpacing.md),
@@ -256,7 +318,7 @@ class _ArchitectRewardsScreenState extends State<ArchitectRewardsScreen>
                 ),
                 const SizedBox(height: AppSpacing.xxs),
                 Text(
-                  '${_user.rewardPoints}',
+                  '$_effectivePoints',
                   style: AppTypography.h1.copyWith(
                     color: Colors.white,
                     fontSize: 36,
@@ -364,6 +426,30 @@ class _ArchitectRewardsScreenState extends State<ArchitectRewardsScreen>
   }
 
   Widget _buildTransactionsList(List<ArchitectRewardTransaction> transactions) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: TslEmptyState(
+            icon: Icons.error_outline,
+            title: 'Unable to load rewards',
+            message: _errorMessage!,
+            actionText: 'Retry',
+            onAction: () {
+              final userId = context.read<UserProvider>().currentUser?.id;
+              if (userId != null && userId.isNotEmpty) {
+                _loadRewards(userId);
+              }
+            },
+          ),
+        ),
+      );
+    }
+
     if (transactions.isEmpty) {
       return Center(
         child: TslEmptyState(
@@ -391,7 +477,7 @@ class _ArchitectRewardsScreenState extends State<ArchitectRewardsScreen>
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) => _RedemptionSheet(
-        availablePoints: _user.rewardPoints,
+        availablePoints: _effectivePoints,
       ),
     );
   }
@@ -451,6 +537,8 @@ class _TransactionCard extends StatelessWidget {
                   style: AppTypography.labelLarge.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: AppSpacing.xxs),
                 Text(
@@ -458,6 +546,8 @@ class _TransactionCard extends StatelessWidget {
                   style: AppTypography.bodySmall.copyWith(
                     color: AppColors.textSecondary,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -660,6 +750,8 @@ class _RedemptionSheetState extends State<_RedemptionSheet> {
                   style: AppTypography.labelMedium.copyWith(
                     color: isAvailable ? AppColors.textPrimary : AppColors.disabled,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               Text(

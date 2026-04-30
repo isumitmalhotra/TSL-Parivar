@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../providers/auth_provider.dart';
 import '../../design_system/design_system.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/architect_models.dart';
@@ -143,25 +145,122 @@ class _ArchitectCreateSpecScreenState extends State<ArchitectCreateSpecScreen>
   Future<void> _submitSpec() async {
     if (!_formKey.currentState!.validate()) return;
 
+    if (_projectType == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a project type.')),
+      );
+      return;
+    }
+    if (_selectedMaterial == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a material.')),
+      );
+      return;
+    }
+    if (_selectedDealers.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select at least one dealer.')),
+      );
+      return;
+    }
+
+    final architectId = context.read<AuthProvider>().userId;
+    if (architectId == null || architectId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Session expired. Please login again.')),
+      );
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
-    // Simulate API call
-    await Future<void>.delayed(const Duration(seconds: 2));
+    try {
+      final selectedDealers = _dealers
+          .where((dealer) => _selectedDealers.contains(dealer.id))
+          .map((dealer) => dealer.toMap())
+          .toList();
 
-    setState(() => _isSubmitting = false);
+      await FirestoreService.createArchitectProjectWithSpecification(
+        architectId: architectId,
+        projectName: _projectName.trim(),
+        projectType: _projectType!.key,
+        location: _location.trim(),
+        expectedDelivery: _expectedDate,
+        dealers: selectedDealers,
+        notes: _notes.trim().isEmpty ? null : _notes.trim(),
+        existingProjectId: widget.existingProject?.id,
+        specification: {
+          'materialType': _selectedMaterial,
+          'quantity': _quantity,
+          'unit': _selectedUnit,
+          'grade': _selectedGrade.key,
+        },
+      );
 
-    if (mounted) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
       _showSuccessDialog();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to create specification right now. Please try again.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
     }
   }
 
-  void _saveDraft() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Draft saved successfully'),
-        backgroundColor: AppColors.success,
-      ),
-    );
+  Future<void> _saveDraft() async {
+    final architectId = context.read<AuthProvider>().userId;
+    if (architectId == null || architectId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Session expired. Please login again.')),
+      );
+      return;
+    }
+
+    if (_projectName.trim().isEmpty || _projectType == null || _location.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter project name, type, and location before saving draft.')),
+      );
+      return;
+    }
+
+    try {
+      final selectedDealers = _dealers
+          .where((dealer) => _selectedDealers.contains(dealer.id))
+          .map((dealer) => dealer.toMap())
+          .toList();
+
+      await FirestoreService.saveArchitectDraftProject(
+        architectId: architectId,
+        projectName: _projectName.trim(),
+        projectType: _projectType!.key,
+        location: _location.trim(),
+        dealers: selectedDealers,
+        notes: _notes.trim().isEmpty ? null : _notes.trim(),
+        expectedDelivery: _expectedDate,
+        existingProjectId: widget.existingProject?.id,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Draft saved successfully'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to save draft right now. Please try again.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   void _showSuccessDialog() {
@@ -262,7 +361,7 @@ class _ArchitectCreateSpecScreenState extends State<ArchitectCreateSpecScreen>
         ),
         actions: [
           TextButton(
-            onPressed: _saveDraft,
+            onPressed: () => _saveDraft(),
             child: const Text('Save Draft'),
           ),
         ],
@@ -822,7 +921,10 @@ class _ArchitectCreateSpecScreenState extends State<ArchitectCreateSpecScreen>
                                 ),
                               ),
                               const SizedBox(height: AppSpacing.xs),
-                              Row(
+                              Wrap(
+                                spacing: AppSpacing.md,
+                                runSpacing: AppSpacing.xxs,
+                                crossAxisAlignment: WrapCrossAlignment.center,
                                 children: [
                                   const Icon(
                                     Icons.location_on,
@@ -835,6 +937,7 @@ class _ArchitectCreateSpecScreenState extends State<ArchitectCreateSpecScreen>
                                     style: AppTypography.caption.copyWith(
                                       color: AppColors.textSecondary,
                                     ),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                   const SizedBox(width: AppSpacing.md),
                                   Icon(
@@ -945,20 +1048,25 @@ class _ArchitectCreateSpecScreenState extends State<ArchitectCreateSpecScreen>
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: AppTypography.bodySmall.copyWith(
-              color: Colors.white.withValues(alpha: 0.8),
+          Expanded(
+            child: Text(
+              label,
+              style: AppTypography.bodySmall.copyWith(
+                color: Colors.white.withValues(alpha: 0.8),
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
+          const SizedBox(width: AppSpacing.md),
           Text(
             value,
             style: AppTypography.labelMedium.copyWith(
               color: Colors.white,
               fontWeight: FontWeight.w600,
             ),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
           ),
         ],
       ),

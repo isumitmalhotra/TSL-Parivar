@@ -25,6 +25,7 @@ class DealerDataProvider extends ChangeNotifier {
   );
 
   String? _dealerId;
+  UserRole? _authRole;
   bool _isLoading = false;
   bool _isAddingMistri = false;
   String? _errorMessage;
@@ -68,6 +69,8 @@ class DealerDataProvider extends ChangeNotifier {
       return;
     }
 
+    _authRole = role;
+
     if (_dealerId == userId) {
       return;
     }
@@ -77,12 +80,15 @@ class DealerDataProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
+    await FirestoreService.ensureDealerProfileDocument(userId);
+
     await _cancelSubscriptions();
     _bindStreams(userId);
   }
 
   Future<void> _clearState() async {
     _dealerId = null;
+    _authRole = null;
     _dealerUser = emptyDealerUser;
     _mistris = [];
     _nearbyMistris = [];
@@ -457,7 +463,25 @@ class DealerDataProvider extends ChangeNotifier {
     if (currentUser == null) {
       throw StateError('You are logged out. Please sign in again.');
     }
-    await currentUser.getIdToken(true);
+    try {
+      await currentUser.getIdToken(true);
+    } on FirebaseAuthException {
+      // Fall back to cached token when force-refresh is temporarily unavailable.
+      await currentUser.getIdToken(false);
+    }
+  }
+
+  @visibleForTesting
+  static bool hasDealerPrivileges({
+    String? profileRole,
+    String? tokenRole,
+    UserRole? syncedRole,
+  }) {
+    final normalizedProfileRole = profileRole?.trim();
+    final normalizedTokenRole = tokenRole?.trim();
+    return normalizedProfileRole == 'dealer' ||
+        normalizedTokenRole == 'dealer' ||
+        syncedRole == UserRole.dealer;
   }
 
   Future<void> _logDealerRoleSnapshot(String dealerId, String attemptId) async {
@@ -495,22 +519,46 @@ class DealerDataProvider extends ChangeNotifier {
   }
 
   Future<void> _ensureDealerRoleForAction(String dealerId) async {
-    try {
-      final profile = await FirestoreService.getUserProfile(dealerId);
-      final role = (profile?['role'] as String?)?.trim();
+    String? profileRole;
+    String? tokenRole;
 
-      if (role == null || role.isEmpty) {
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      final token = await currentUser?.getIdTokenResult();
+      final tokenRoleRaw = token?.claims?['role'];
+      tokenRole = tokenRoleRaw is String ? tokenRoleRaw : null;
+
+      final profile = await FirestoreService.getUserProfile(dealerId);
+      profileRole = (profile?['role'] as String?)?.trim();
+
+      if (hasDealerPrivileges(
+        profileRole: profileRole,
+        tokenRole: tokenRole,
+        syncedRole: _authRole,
+      )) {
+        return;
+      }
+
+      if ((profileRole == null || profileRole.isEmpty) &&
+          (tokenRole == null || tokenRole.isEmpty)) {
         throw StateError(
           'Your account role is missing. Please log out and sign in again as dealer.',
         );
       }
 
-      if (role != 'dealer') {
-        throw StateError(
-          'Account role mismatch: this account is "$role" but dealer access is required.',
-        );
-      }
+      final resolvedRole = profileRole ?? tokenRole ?? _authRole?.name;
+      throw StateError(
+        'Account role mismatch: this account is "$resolvedRole" but dealer access is required.',
+      );
     } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied' &&
+          hasDealerPrivileges(
+            profileRole: profileRole,
+            tokenRole: tokenRole,
+            syncedRole: _authRole,
+          )) {
+        return;
+      }
       if (e.code == 'permission-denied') {
         throw StateError(
           'Unable to verify account role. Please re-login and try again.',
@@ -561,6 +609,11 @@ class DealerDataProvider extends ChangeNotifier {
         } else if (message.contains('Unable to verify account role')) {
           _errorMessage =
               'Unable to verify account role. Please re-login and try again.';
+        } else if (message.contains('dealer access is required')) {
+          _errorMessage =
+              'This account does not have dealer privileges. Please sign in with a dealer account.';
+        } else if (message.contains('valid 10-digit mobile number')) {
+          _errorMessage = 'Please enter a valid 10-digit mobile number.';
         } else if (message.contains('logged out')) {
           _errorMessage = 'Session expired. Please login again.';
         } else if (message.contains('Dealer session')) {

@@ -181,26 +181,32 @@ class _DealerHomeScreenState extends State<DealerHomeScreen>
               ),
             ),
             const SizedBox(width: 12),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'TSL Parivar',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'TSL Parivar',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                Text(
-                  _user.shopName,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.8),
-                    fontSize: 11,
+                  Text(
+                    _user.shopName,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.8),
+                      fontSize: 11,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
@@ -508,6 +514,8 @@ class _DealerHomeScreenState extends State<DealerHomeScreen>
                 style: AppTypography.bodySmall.copyWith(
                   color: AppColors.textSecondary,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: AppSpacing.sm),
               Container(
@@ -528,6 +536,8 @@ class _DealerHomeScreenState extends State<DealerHomeScreen>
                         : AppColors.warning,
                     fontWeight: FontWeight.w500,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -546,7 +556,7 @@ class _DealerHomeScreenState extends State<DealerHomeScreen>
           TslSectionHeader(
             title: l10n.rewardsTitle,
             icon: Icons.emoji_events,
-            onViewAll: () {},
+            onViewAll: () => context.push('/dealer/rewards'),
           ),
           const SizedBox(height: AppSpacing.md),
           AnimatedBuilder(
@@ -760,28 +770,7 @@ class _DealerHomeScreenState extends State<DealerHomeScreen>
                               ),
                             ),
                             const SizedBox(height: AppSpacing.sm),
-                            Wrap(
-                              spacing: AppSpacing.lg,
-                              runSpacing: AppSpacing.xs,
-                              children: [
-                                _buildMistriStat(
-                                  icon: Icons.local_shipping,
-                                  value: '${_topMistri.completedDeliveries}',
-                                  label: 'Deliveries',
-                                ),
-                                _buildMistriStat(
-                                  icon: Icons.trending_up,
-                                  value:
-                                      '${_topMistri.successRate.toStringAsFixed(1)}%',
-                                  label: 'Success',
-                                ),
-                                _buildMistriStat(
-                                  icon: Icons.star,
-                                  value: '${_topMistri.rewardPoints}',
-                                  label: 'Points',
-                                ),
-                              ],
-                            ),
+                            _buildTopMistriStats(),
                           ],
                         ),
                       ),
@@ -793,6 +782,50 @@ class _DealerHomeScreenState extends State<DealerHomeScreen>
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTopMistriStats() {
+    final textScale = MediaQuery.textScalerOf(context).scale(1.0);
+    final stats = [
+      _buildMistriStat(
+        icon: Icons.local_shipping,
+        value: '${_topMistri.completedDeliveries}',
+        label: 'Deliveries',
+      ),
+      _buildMistriStat(
+        icon: Icons.trending_up,
+        value: '${_topMistri.successRate.toStringAsFixed(1)}%',
+        label: 'Success',
+      ),
+      _buildMistriStat(
+        icon: Icons.star,
+        value: '${_topMistri.rewardPoints}',
+        label: 'Points',
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final keepSingleRow = constraints.maxWidth >= 290 && textScale <= 1.2;
+
+        if (keepSingleRow) {
+          return Row(
+            children: [
+              for (var i = 0; i < stats.length; i++) ...[
+                Expanded(child: Center(child: stats[i])),
+                if (i < stats.length - 1) const SizedBox(width: AppSpacing.md),
+              ],
+            ],
+          );
+        }
+
+        return Wrap(
+          spacing: AppSpacing.lg,
+          runSpacing: AppSpacing.xs,
+          children: stats,
+        );
+      },
     );
   }
 
@@ -843,7 +876,7 @@ class _DealerHomeScreenState extends State<DealerHomeScreen>
                   label: l10n.dealerHomeAddMistri,
                   gradient: const [Color(0xFF43A047), Color(0xFF2E7D32)],
                   onTap: () {
-                    context.go('${AppRoutes.dealerHome}?tab=mistris');
+                    context.go(AppRoutes.dealerMistris);
                   },
                 ),
               ),

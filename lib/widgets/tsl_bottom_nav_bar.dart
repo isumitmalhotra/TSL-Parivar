@@ -296,6 +296,8 @@ class _NavItem extends StatelessWidget {
                   color: color,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ],

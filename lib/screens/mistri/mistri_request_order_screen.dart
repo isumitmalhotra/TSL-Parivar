@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -314,7 +315,7 @@ class _MistriRequestOrderScreenState extends State<MistriRequestOrderScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (_isUsingFallbackMaterials)
+          if (_isUsingFallbackMaterials && kDebugMode)
             Container(
               margin: const EdgeInsets.only(bottom: AppSpacing.md),
               padding: const EdgeInsets.all(AppSpacing.md),
@@ -348,11 +349,11 @@ class _MistriRequestOrderScreenState extends State<MistriRequestOrderScreen>
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 260,
               crossAxisSpacing: AppSpacing.md,
               mainAxisSpacing: AppSpacing.md,
-              childAspectRatio: 2.5,
+              childAspectRatio: 2.2,
             ),
             itemCount: _materials.length,
             itemBuilder: (context, index) {
@@ -432,123 +433,131 @@ class _MistriRequestOrderScreenState extends State<MistriRequestOrderScreen>
     return _buildSectionCard(
       title: AppLocalizations.of(context).requestOrderQuantity,
       icon: Icons.straighten,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final useStackedLayout = constraints.maxWidth < 380;
+
+          Widget quantityPicker = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                flex: 2,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Amount',
-                      style: AppTypography.labelMedium.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            onPressed: _quantity > 10
-                                ? () => setState(() => _quantity -= 10)
-                                : null,
-                            icon: const Icon(Icons.remove),
-                            color: AppColors.primary,
-                          ),
-                          Expanded(
-                            child: Text(
-                              _quantity.toStringAsFixed(0),
-                              style: AppTypography.h2,
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                          IconButton(
-                            onPressed: () =>
-                                setState(() => _quantity += 10),
-                            icon: const Icon(Icons.add),
-                            color: AppColors.primary,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+              Text(
+                'Amount',
+                style: AppTypography.labelMedium.copyWith(
+                  color: colorScheme.onSurfaceVariant,
                 ),
               ),
-              const SizedBox(width: AppSpacing.lg),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              const SizedBox(height: AppSpacing.sm),
+              Container(
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
                   children: [
-                    Text(
-                      'Unit',
-                      style: AppTypography.labelMedium.copyWith(
-                        color: colorScheme.onSurfaceVariant,
+                    IconButton(
+                      onPressed: _quantity > 10
+                          ? () => setState(() => _quantity -= 10)
+                          : null,
+                      icon: const Icon(Icons.remove),
+                      color: AppColors.primary,
+                    ),
+                    Expanded(
+                      child: Text(
+                        _quantity.toStringAsFixed(0),
+                        style: AppTypography.h2,
+                        textAlign: TextAlign.center,
                       ),
                     ),
-                    const SizedBox(height: AppSpacing.sm),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.md,
-                      ),
-                      decoration: BoxDecoration(
-                        color: colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: _selectedUnit,
-                          isExpanded: true,
-                          items: (_selectedMaterial?.availableUnits ??
-                                  ['kg', 'pcs'])
-                              .map<DropdownMenuItem<String>>((String unit) => DropdownMenuItem<String>(
-                                    value: unit,
-                                    child: Text(unit),
-                                  ))
-                              .toList(),
-                          onChanged: (value) {
-                            if (value != null) {
-                              setState(() => _selectedUnit = value);
-                            }
-                          },
-                        ),
-                      ),
+                    IconButton(
+                      onPressed: () => setState(() => _quantity += 10),
+                      icon: const Icon(Icons.add),
+                      color: AppColors.primary,
                     ),
                   ],
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          // Quick select buttons
-          Wrap(
-            spacing: AppSpacing.sm,
-            children: [100, 250, 500, 1000].map((qty) {
-              final isSelected = _quantity == qty.toDouble();
-              return ActionChip(
-                label: Text('$qty'),
-                backgroundColor: isSelected
-                    ? AppColors.primary.withValues(alpha: 0.1)
-                    : null,
-                side: BorderSide(
-                  color: isSelected ? AppColors.primary : colorScheme.outline,
+          );
+
+          Widget unitPicker = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Unit',
+                style: AppTypography.labelMedium.copyWith(
+                  color: colorScheme.onSurfaceVariant,
                 ),
-                labelStyle: TextStyle(
-                  color: isSelected ? AppColors.primary : colorScheme.onSurface,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                onPressed: () => setState(() => _quantity = qty.toDouble()),
-              );
-            }).toList(),
-          ),
-        ],
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _selectedUnit,
+                    isExpanded: true,
+                    items: (_selectedMaterial?.availableUnits ?? ['kg', 'pcs'])
+                        .map<DropdownMenuItem<String>>(
+                          (String unit) => DropdownMenuItem<String>(
+                            value: unit,
+                            child: Text(unit),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() => _selectedUnit = value);
+                      }
+                    },
+                  ),
+                ),
+              ),
+            ],
+          );
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (useStackedLayout) ...[
+                quantityPicker,
+                const SizedBox(height: AppSpacing.md),
+                unitPicker,
+              ] else
+                Row(
+                  children: [
+                    Expanded(flex: 2, child: quantityPicker),
+                    const SizedBox(width: AppSpacing.lg),
+                    Expanded(child: unitPicker),
+                  ],
+                ),
+              const SizedBox(height: AppSpacing.md),
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [100, 250, 500, 1000].map((qty) {
+                  final isSelected = _quantity == qty.toDouble();
+                  return ActionChip(
+                    label: Text('$qty'),
+                    backgroundColor: isSelected
+                        ? AppColors.primary.withValues(alpha: 0.1)
+                        : null,
+                    side: BorderSide(
+                      color: isSelected ? AppColors.primary : colorScheme.outline,
+                    ),
+                    labelStyle: TextStyle(
+                      color: isSelected ? AppColors.primary : colorScheme.onSurface,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                    onPressed: () => setState(() => _quantity = qty.toDouble()),
+                  );
+                }).toList(),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

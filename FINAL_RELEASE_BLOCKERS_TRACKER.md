@@ -41,7 +41,7 @@ Use this file as the single source of truth for closure before final Android/iOS
   - Remaining: Play-installed OTP run + log evidence + screenshot/video evidence.
 
 ### P0-2 Dealer -> Mistri add/link runtime reliability
-- **Status:** Open
+- **Status:** In Progress
 - **Issue:** User still reports `Failed to add mistri` in runtime.
 - **Fix actions:**
   - Validate `firestore.rules` and `firestore.indexes.json` are deployed to target project.
@@ -54,9 +54,15 @@ Use this file as the single source of truth for closure before final Android/iOS
   - [ ] Same phone login as mistri shows linked dealer
   - [ ] No permission/index errors in logs
   - [ ] Evidence captured
+- **Progress notes (2026-04-20):**
+  - Hardened dealer-role preflight in `lib/providers/dealer_data_provider.dart` to use profile role + token claim + synced role fallback, reducing false negatives when profile lookup is temporarily unavailable.
+  - Added resilient auth token refresh fallback in provider to avoid transient force-refresh failures from blocking add/link.
+  - Added stronger input validation in `lib/services/firestore_service.dart` for dealerId and 10-digit phone format before attempting writes.
+  - Added focused unit coverage for dealer privilege resolution: `test/providers/dealer_data_provider_role_test.dart`.
+  - Remaining: device/runtime validation evidence for end-to-end dealer add -> mistri login linkage.
 
 ### P0-3 Critical no-op actions replaced with backend-backed behavior
-- **Status:** Open
+- **Status:** In Progress
 - **Issue:** Some important CTA handlers are still no-op or local-only.
 - **Fix actions:**
   - Replace placeholder handlers with real service/provider calls.
@@ -67,9 +73,14 @@ Use this file as the single source of truth for closure before final Android/iOS
   - [ ] All primary action buttons on tested flows execute business action
   - [ ] Data persists after app restart
   - [ ] Failure states show actionable message
+- **Progress notes (2026-04-20):**
+  - Wired `MistriDeliveryDetailsScreen` primary CTA to real actions: start delivery via provider + navigate to POD flow.
+  - Replaced simulated POD submit path with provider-backed `submitPod(...)` call and explicit failure messaging.
+  - Updated `DeliveryProvider` to persist `startDelivery` and POD submission state to Firestore (`deliveries` docs), instead of local-only state mutation.
+  - Remaining: end-to-end runtime validation on device and evidence capture for persistence after restart.
 
 ### P0-4 Architect flow productionization (remove simulated/mock runtime behavior)
-- **Status:** Open
+- **Status:** In Progress
 - **Issue:** Architect projects/rewards/spec flows are still partially in-memory/simulated.
 - **Fix actions:**
   - Move architect projects and rewards to Firestore-backed loading.
@@ -80,13 +91,21 @@ Use this file as the single source of truth for closure before final Android/iOS
   - [ ] Architect sees persisted projects/rewards data
   - [ ] Create spec writes to backend and is visible on reload
   - [ ] No simulated delay-only submit paths remain
+- **Progress notes (2026-04-20):**
+  - Added Firestore-backed architect persistence helpers in `lib/services/firestore_service.dart`:
+    - `saveArchitectDraftProject(...)`
+    - `createArchitectProjectWithSpecification(...)`
+  - Replaced simulated submit/draft logic in `lib/screens/architect/architect_create_spec_screen.dart` with backend writes.
+  - Wired `lib/screens/architect/architect_projects_screen.dart` to load architect-owned projects from Firestore.
+  - Wired `lib/screens/architect/architect_rewards_screen.dart` to load reward balance/history from Firestore.
+  - Remaining: manual runtime verification on device for create -> reload -> visibility and role-based access.
 
 ---
 
 ## P1 - Pre-release quality gates (should close before submission)
 
 ### P1-1 Dark mode decision closure (remove or fully implement)
-- **Status:** Open
+- **Status:** In Progress
 - **Issue:** Current behavior is inconsistent and partially disabled.
 - **Fix actions (recommended for current release):**
   - Remove dark mode toggle and keep app consistently light.
@@ -95,9 +114,13 @@ Use this file as the single source of truth for closure before final Android/iOS
 - **Exit criteria:**
   - [ ] No dark-mode toggle exposed to user
   - [ ] No dark-mode-only visual regressions
+- **Progress notes (2026-04-20):**
+  - App runtime remains forced light mode (`themeMode: ThemeMode.light` in `lib/app.dart`).
+  - `setDarkModeEnabled` in `lib/providers/app_settings_provider.dart` is now explicitly deprecated and logs when called, to prevent accidental reintroduction in this release.
+  - Remaining: final regression sweep to confirm no dark-mode toggle is visible on any role profile/settings surface.
 
 ### P1-2 Overflow/layout regressions across roles
-- **Status:** Open
+- **Status:** In Progress
 - **Issue:** Runtime `right overflowed by` remains on key pages.
 - **Fix actions:**
   - Fix constrained rows/cards with `Expanded/Flexible/Wrap`.
@@ -107,9 +130,24 @@ Use this file as the single source of truth for closure before final Android/iOS
 - **Exit criteria:**
   - [ ] No overflow warnings in tested role flows
   - [ ] QA screenshots captured for fixed screens
+- **Progress notes (2026-04-20):**
+  - Hardened architect project stats card layout to wrap instead of forcing a single dense row.
+  - Hardened architect create-spec dealer meta row and summary rows to avoid text collision/overflow on narrow widths.
+  - Hardened `lib/widgets/tsl_bottom_nav_bar.dart` labels with ellipsis to avoid nav-label overflow at narrow widths.
+  - Hardened `lib/screens/dealer/dealer_home_screen.dart` app-bar/store name + KPI trend/title text for compact layouts.
+  - Hardened `lib/screens/mistri/mistri_home_screen.dart` app-bar/action labels for compact layouts.
+  - Hardened `lib/screens/shared/notification_center_screen.dart` header counters and made detail/settings sheets scrollable for short-height devices.
+  - Completed remaining dealer/mistri/shared overflow pass in:
+    - `lib/screens/dealer/dealer_mistris_screen.dart`
+    - `lib/screens/dealer/dealer_rewards_screen.dart`
+    - `lib/screens/mistri/mistri_rewards_screen.dart`
+    - `lib/screens/shared/profile_screen.dart`
+    - `lib/screens/shared/product_catalog_screen.dart`
+  - Captured code-level evidence report: `release_evidence/2026-04-20/OVERFLOW_SWEEP_REPORT.md`.
+  - Remaining: device-level smoke screenshots/video for compact widths and large text scale.
 
 ### P1-3 Profile legal/support action wiring
-- **Status:** Open
+- **Status:** In Progress
 - **Issue:** Privacy/Terms/Help/Support/Contact/Share actions not consistently wired.
 - **Fix actions:**
   - Ensure legal routes open correctly (`/legal/privacy`, `/legal/terms`).
@@ -118,6 +156,11 @@ Use this file as the single source of truth for closure before final Android/iOS
 - **Exit criteria:**
   - [ ] All profile legal/support actions are functional
   - [ ] External links open correctly on Android and iOS
+- **Progress notes (2026-04-20):**
+  - Replaced remaining profile no-op `Activity` quick action with navigation to notifications.
+  - Hardened legal actions with fallback behavior in `lib/screens/shared/profile_screen.dart`: internal legal route first, external policy URL fallback on failure.
+  - Support/contact/rate/share actions continue through `UrlLauncherService` with user-facing fallback messages.
+  - Remaining: device verification for external launcher behavior on Android and iOS.
 
 ---
 
@@ -178,5 +221,6 @@ If any above is not complete, release is `NO-GO`.
 
 - `PRE_RELEASE_SMOKE_CHECKLIST.md`
 - `release_evidence/2026-03-31/RELEASE_READINESS_REPORT.md`
+- `release_evidence/2026-04-20/OVERFLOW_SWEEP_REPORT.md`
 - `important documentation/FIREBASE_PHONE_AUTH_RELEASE_CHECKLIST.md`
 

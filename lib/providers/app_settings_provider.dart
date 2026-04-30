@@ -45,7 +45,11 @@ class AppSettingsProvider extends ChangeNotifier {
     await _update(_settings.copyWith(notificationsEnabled: enabled));
   }
 
+  @Deprecated('Dark mode is out of scope for this release and forced off.')
   Future<void> setDarkModeEnabled({required bool enabled}) async {
+    if (enabled) {
+      debugPrint('Dark mode toggle ignored: app is forced to light mode for this release.');
+    }
     await _update(_settings.copyWith(darkModeEnabled: false));
   }
 

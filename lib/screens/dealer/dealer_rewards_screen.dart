@@ -331,9 +331,13 @@ class _DealerRewardsScreenState extends State<DealerRewardsScreen>
             children: [
               Icon(icon, size: 18, color: Colors.white),
               const SizedBox(width: AppSpacing.xs),
-              Text(
-                label,
-                style: AppTypography.labelMedium.copyWith(color: Colors.white),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.labelMedium.copyWith(color: Colors.white),
+                ),
               ),
             ],
           ),
@@ -568,8 +572,10 @@ class _RedemptionSheetState extends State<_RedemptionSheet> {
             ),
           ),
           const SizedBox(height: AppSpacing.xl),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            spacing: AppSpacing.md,
+            runSpacing: AppSpacing.sm,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Text('Redeem Points', style: AppTypography.h2),
               Container(
@@ -751,8 +757,10 @@ class _DistributeSheetState extends State<_DistributeSheet> {
               ),
             ),
             const SizedBox(height: AppSpacing.xl),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Wrap(
+                spacing: AppSpacing.md,
+                runSpacing: AppSpacing.sm,
+                crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Text('Distribute Points', style: AppTypography.h2),
                 Container(

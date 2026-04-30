@@ -367,41 +367,62 @@ class _MistriRewardsScreenState extends State<MistriRewardsScreen>
   }
 
   Widget _buildStatsGrid() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildStatCard(
-              title: 'Pending',
-              value: '${_user.pendingPoints}',
-              subtitle: 'points',
-              icon: Icons.schedule,
-              color: AppColors.warning,
-            ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final textScale = MediaQuery.textScalerOf(context).scale(1.0);
+        final keepHorizontal = constraints.maxWidth >= 320 && textScale <= 1.25;
+
+        final cards = [
+          _buildStatCard(
+            title: 'Pending',
+            value: '${_user.pendingPoints}',
+            subtitle: 'points',
+            icon: Icons.schedule,
+            color: AppColors.warning,
           ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: _buildStatCard(
-              title: 'Deliveries',
-              value: '${_user.totalDeliveries}',
-              subtitle: 'total',
-              icon: Icons.local_shipping,
-              color: AppColors.info,
-            ),
+          _buildStatCard(
+            title: 'Deliveries',
+            value: '${_user.totalDeliveries}',
+            subtitle: 'total',
+            icon: Icons.local_shipping,
+            color: AppColors.info,
           ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: _buildStatCard(
-              title: 'Success',
-              value: '${_user.successRate.toStringAsFixed(0)}%',
-              subtitle: 'rate',
-              icon: Icons.trending_up,
-              color: AppColors.success,
-            ),
+          _buildStatCard(
+            title: 'Success',
+            value: '${_user.successRate.toStringAsFixed(0)}%',
+            subtitle: 'rate',
+            icon: Icons.trending_up,
+            color: AppColors.success,
           ),
-        ],
-      ),
+        ];
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          child: keepHorizontal
+              ? Row(
+                  children: [
+                    for (var i = 0; i < cards.length; i++) ...[
+                      Expanded(child: cards[i]),
+                      if (i < cards.length - 1) const SizedBox(width: AppSpacing.md),
+                    ],
+                  ],
+                )
+              : Wrap(
+                  spacing: AppSpacing.md,
+                  runSpacing: AppSpacing.md,
+                  children: cards
+                      .map(
+                        (card) => SizedBox(
+                          width: constraints.maxWidth >= 520
+                              ? (constraints.maxWidth - (AppSpacing.md * 2)) / 3
+                              : (constraints.maxWidth - AppSpacing.md) / 2,
+                          child: card,
+                        ),
+                      )
+                      .toList(),
+                ),
+        );
+      },
     );
   }
 
@@ -482,6 +503,7 @@ class _MistriRewardsScreenState extends State<MistriRewardsScreen>
       color: AppColors.cardWhite,
       child: TabBar(
         controller: _tabController,
+        isScrollable: true,
         labelColor: AppColors.primary,
         unselectedLabelColor: AppColors.textSecondary,
         labelStyle: AppTypography.labelLarge.copyWith(

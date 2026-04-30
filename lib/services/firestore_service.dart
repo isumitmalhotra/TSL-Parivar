@@ -68,6 +68,14 @@ class FirestoreService {
   static CollectionReference<Map<String, dynamic>> get productsCollection =>
       _db.collection('products');
 
+  /// Projects collection
+  static CollectionReference<Map<String, dynamic>> get projectsCollection =>
+      _db.collection('projects');
+
+  /// Specifications collection
+  static CollectionReference<Map<String, dynamic>> get specificationsCollection =>
+      _db.collection('specifications');
+
   /// Notifications collection
   static CollectionReference<Map<String, dynamic>> get notificationsCollection =>
       _db.collection('notifications');
@@ -808,16 +816,26 @@ class FirestoreService {
     required String specialization,
   }) async {
     try {
+      final normalizedDealerId = dealerId.trim();
+      if (normalizedDealerId.isEmpty) {
+        throw StateError('Dealer session is not ready. Please reopen this page and try again.');
+      }
+
+      await ensureDealerProfileDocument(normalizedDealerId);
+
       final traceId = 'adm_${DateTime.now().millisecondsSinceEpoch}_${_addMistriTraceCounter++}';
       final normalizedPhone = normalizeIndianPhone(phone);
       final normalizedPhoneDigits = phoneDigits(phone);
+      if (normalizedPhoneDigits.length != 10) {
+        throw StateError('Please enter a valid 10-digit mobile number.');
+      }
       final normalizedName = name.trim().isEmpty ? 'Mistri' : name.trim();
       final normalizedSpecialization = specialization.trim().isEmpty
           ? 'General'
           : specialization.trim();
 
       debugPrint(
-        '🧪[ADD_MISTRI:$traceId] start dealerId=$dealerId phone=$normalizedPhone digits=$normalizedPhoneDigits',
+        '🧪[ADD_MISTRI:$traceId] start dealerId=$normalizedDealerId phone=$normalizedPhone digits=$normalizedPhoneDigits',
       );
 
       final existingMistriByPhone = await _findMistriByPhone(
@@ -864,6 +882,9 @@ class FirestoreService {
       final locationContract = persistedUserId == null
           ? const <String, dynamic>{}
           : await _loadUserLocationContract(persistedUserId);
+      final assignedDealerSnapshot = await _buildAssignedDealerSnapshot(
+        normalizedDealerId,
+      );
 
       debugPrint(
         '🧪[ADD_MISTRI:$traceId] resolve mistriId=$resolvedMistriId existingUserId=$existingUserId hasUidDoc=${uidLinkedDoc?.exists == true} hasPhoneDoc=${existingMistriByPhone != null}',
@@ -874,11 +895,12 @@ class FirestoreService {
         'phone': normalizedPhone,
         'phoneDigits': normalizedPhoneDigits,
         'specialization': normalizedSpecialization,
-        fieldDealerId: dealerId,
+        fieldDealerId: normalizedDealerId,
         fieldMistriId: resolvedMistriId,
         fieldUserId: persistedUserId,
         fieldStatus: (currentData?[fieldStatus] as String?) ?? (isPendingInvite ? 'pending' : 'active'),
         'isActive': (currentData?['isActive'] as bool?) ?? !isPendingInvite,
+        if (assignedDealerSnapshot != null) 'assignedDealer': assignedDealerSnapshot,
         ...locationContract,
         if (currentData == null || currentData[fieldCreatedAt] == null)
           fieldCreatedAt: FieldValue.serverTimestamp(),
@@ -886,7 +908,7 @@ class FirestoreService {
       }, SetOptions(merge: true));
 
       if (persistedUserId != null && persistedUserId.isNotEmpty) {
-        final dealerName = await _resolveDealerName(dealerId);
+        final dealerName = await _resolveDealerName(normalizedDealerId);
         await _createNotificationSafe(
           userId: persistedUserId,
           type: 'approval',
@@ -894,14 +916,14 @@ class FirestoreService {
           message: '$dealerName added you as a mistri.',
           deepLink: '/mistri/home',
           metadata: {
-            fieldDealerId: dealerId,
+            fieldDealerId: normalizedDealerId,
             fieldMistriId: resolvedMistriId,
           },
         );
       }
 
       debugPrint(
-        '✅[ADD_MISTRI:$traceId] success mistriId=$resolvedMistriId pendingInvite=$isPendingInvite reassigned=${previousDealerId != null && previousDealerId != dealerId}',
+        '✅[ADD_MISTRI:$traceId] success mistriId=$resolvedMistriId pendingInvite=$isPendingInvite reassigned=${previousDealerId != null && previousDealerId != normalizedDealerId}',
       );
 
       return DealerMistriLinkResult(
@@ -912,7 +934,7 @@ class FirestoreService {
         wasExisting: currentData != null,
         isPendingInvite: isPendingInvite,
         wasReassignedFromAnotherDealer:
-            previousDealerId != null && previousDealerId != dealerId,
+            previousDealerId != null && previousDealerId != normalizedDealerId,
       );
     } catch (e) {
       debugPrint('❌[ADD_MISTRI] Error adding/linking mistri: $e');
@@ -1054,7 +1076,9 @@ class FirestoreService {
     }
 
     final dealerId = _asNonEmptyString(linkedData[fieldDealerId]);
-    Map<String, dynamic>? assignedDealer;
+    Map<String, dynamic>? assignedDealer = _asDealerSnapshot(
+      linkedData['assignedDealer'],
+    );
     if (dealerId != null) {
       final dealerSnapshot = await dealersCollection.doc(dealerId).get();
       final dealerData = dealerSnapshot.data();
@@ -1069,6 +1093,8 @@ class FirestoreService {
           'rating': ((dealerData['rating'] as num?) ?? 0).toDouble(),
           'totalDeliveries': (dealerData['totalDeliveries'] as int?) ?? 0,
         };
+      } else {
+        assignedDealer ??= await _buildAssignedDealerSnapshot(dealerId);
       }
     }
 
@@ -1120,6 +1146,75 @@ class FirestoreService {
     }
   }
 
+  static Future<Map<String, dynamic>?> _buildAssignedDealerSnapshot(
+    String dealerId,
+  ) async {
+    try {
+      final dealerSnapshot = await dealersCollection.doc(dealerId).get();
+      final dealerData = dealerSnapshot.data();
+
+      Map<String, dynamic>? dealerUserData;
+      try {
+        final dealerUserSnapshot = await usersCollection.doc(dealerId).get();
+        dealerUserData = dealerUserSnapshot.data();
+      } catch (_) {
+        dealerUserData = null;
+      }
+
+      final name = _asNonEmptyString(dealerData?['name']) ??
+          _asNonEmptyString(dealerUserData?['name']) ??
+          'Dealer';
+      final shopName = _asNonEmptyString(dealerData?['shopName']) ??
+          _asNonEmptyString(dealerUserData?['shopName']) ??
+          name;
+      final phone = _asNonEmptyString(dealerData?['phone']) ??
+          _asNonEmptyString(dealerUserData?['phone']) ??
+          '';
+      final address = _asNonEmptyString(dealerData?['address']) ??
+          _asNonEmptyString(dealerUserData?['address']) ??
+          _asNonEmptyString(dealerUserData?['addressLine']) ??
+          _asNonEmptyString(dealerUserData?['location']) ??
+          '';
+
+      return {
+        'id': dealerId,
+        'name': name,
+        'shopName': shopName,
+        'phone': phone,
+        'address': address,
+        if (dealerData?['imageUrl'] is String || dealerUserData?['imageUrl'] is String)
+          'imageUrl': (dealerData?['imageUrl'] as String?) ??
+              (dealerUserData?['imageUrl'] as String?),
+        'rating': ((dealerData?['rating'] as num?) ?? 0).toDouble(),
+        'totalDeliveries': (dealerData?['totalDeliveries'] as int?) ?? 0,
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Map<String, dynamic>? _asDealerSnapshot(dynamic raw) {
+    if (raw is! Map<String, dynamic>) {
+      return null;
+    }
+    final id = _asNonEmptyString(raw['id']);
+    if (id == null) {
+      return null;
+    }
+    return {
+      'id': id,
+      'name': _asNonEmptyString(raw['name']) ?? 'Dealer',
+      'shopName': _asNonEmptyString(raw['shopName']) ??
+          _asNonEmptyString(raw['name']) ??
+          'Dealer',
+      'phone': _asNonEmptyString(raw['phone']) ?? '',
+      'address': _asNonEmptyString(raw['address']) ?? '',
+      if (raw['imageUrl'] is String) 'imageUrl': raw['imageUrl'],
+      'rating': ((raw['rating'] as num?) ?? 0).toDouble(),
+      'totalDeliveries': (raw['totalDeliveries'] as int?) ?? 0,
+    };
+  }
+
   static Future<void> _createNotificationSafe({
     required String userId,
     required String type,
@@ -1143,6 +1238,164 @@ class FirestoreService {
       });
     } catch (e) {
       debugPrint('⚠️ Notification create skipped: $e');
+    }
+  }
+
+  /// Persist an architect draft project (idempotent for existing project id).
+  static Future<String> saveArchitectDraftProject({
+    required String architectId,
+    required String projectName,
+    required String projectType,
+    required String location,
+    required List<Map<String, dynamic>> dealers,
+    String? notes,
+    String? existingProjectId,
+    DateTime? expectedDelivery,
+  }) async {
+    final id = _asNonEmptyString(existingProjectId);
+    final docRef = id == null
+        ? projectsCollection.doc()
+        : projectsCollection.doc(id);
+    final existingSnapshot = await docRef.get();
+    final existingSpecCount = ((existingSnapshot.data()?['specificationCount'] as num?) ?? 0)
+        .toInt();
+
+    await docRef.set({
+      'architectId': architectId,
+      'name': projectName,
+      'type': projectType,
+      'status': 'draft',
+      'location': location,
+      'dealers': dealers,
+      'specificationCount': existingSpecCount,
+      if (notes != null && notes.isNotEmpty) 'notes': notes,
+      if (expectedDelivery != null)
+        'expectedDelivery': Timestamp.fromDate(expectedDelivery),
+      if (id == null) fieldCreatedAt: FieldValue.serverTimestamp(),
+      fieldUpdatedAt: FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    return docRef.id;
+  }
+
+  /// Persist architect project + specification submission and reward history.
+  static Future<String> createArchitectProjectWithSpecification({
+    required String architectId,
+    required String projectName,
+    required String projectType,
+    required String location,
+    required DateTime? expectedDelivery,
+    required List<Map<String, dynamic>> dealers,
+    required Map<String, dynamic> specification,
+    String? notes,
+    String? existingProjectId,
+    int rewardPoints = 150,
+  }) async {
+    final id = _asNonEmptyString(existingProjectId);
+    final projectRef = id == null
+        ? projectsCollection.doc()
+        : projectsCollection.doc(id);
+    final specificationRef = specificationsCollection.doc();
+    final rewardsRef = rewardsCollection.doc(architectId);
+    final rewardHistoryRef = rewardsRef.collection('history').doc();
+
+    await _db.runTransaction((transaction) async {
+      final projectSnapshot = await transaction.get(projectRef);
+      final previousSpecCount = ((projectSnapshot.data()?['specificationCount'] as num?) ?? 0)
+          .toInt();
+      final projectSpecification = {
+        'id': specificationRef.id,
+        'materialType': specification['materialType'],
+        'quantity': specification['quantity'],
+        'unit': specification['unit'],
+        'grade': specification['grade'],
+      };
+
+      transaction.set(projectRef, {
+        'architectId': architectId,
+        'name': projectName,
+        'type': projectType,
+        'status': 'active',
+        'location': location,
+        'dealers': dealers,
+        'specificationCount': previousSpecCount + 1,
+        'specifications': FieldValue.arrayUnion([projectSpecification]),
+        'pointsEarned': FieldValue.increment(rewardPoints),
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+        if (expectedDelivery != null)
+          'expectedDelivery': Timestamp.fromDate(expectedDelivery),
+        if (!projectSnapshot.exists) fieldCreatedAt: FieldValue.serverTimestamp(),
+        fieldUpdatedAt: FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      transaction.set(specificationRef, {
+        'architectId': architectId,
+        'projectId': projectRef.id,
+        ...specification,
+        'status': 'submitted',
+        fieldCreatedAt: FieldValue.serverTimestamp(),
+        fieldUpdatedAt: FieldValue.serverTimestamp(),
+      });
+
+      transaction.set(rewardsRef, {
+        'userId': architectId,
+        'points': FieldValue.increment(rewardPoints),
+        fieldUpdatedAt: FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      transaction.set(rewardHistoryRef, {
+        'type': 'specification',
+        'title': 'Specification Submitted',
+        'description': specification['materialType'] ?? 'Material specification submitted',
+        'points': rewardPoints,
+        fieldCreatedAt: FieldValue.serverTimestamp(),
+      });
+    });
+
+    return projectRef.id;
+  }
+
+  /// Ensure dealer profile exists in dealers collection for cross-role reads.
+  static Future<void> ensureDealerProfileDocument(String dealerId) async {
+    try {
+      final normalizedDealerId = dealerId.trim();
+      if (normalizedDealerId.isEmpty) return;
+
+      final userDoc = await usersCollection.doc(normalizedDealerId).get();
+      final userData = userDoc.data();
+      if (userData == null) return;
+
+      final payload = <String, dynamic>{
+        if (_asNonEmptyString(userData['name']) != null)
+          'name': _asNonEmptyString(userData['name']),
+        if (_asNonEmptyString(userData['shopName']) != null)
+          'shopName': _asNonEmptyString(userData['shopName']),
+        if (_asNonEmptyString(userData['phone']) != null)
+          'phone': _asNonEmptyString(userData['phone']),
+        if (_asNonEmptyString(userData['address']) != null)
+          'address': _asNonEmptyString(userData['address']),
+        if (_asNonEmptyString(userData['addressLine']) != null)
+          'addressLine': _asNonEmptyString(userData['addressLine']),
+        if (_asNonEmptyString(userData['location']) != null)
+          'location': _asNonEmptyString(userData['location']),
+        if (_asNonEmptyString(userData[fieldCity]) != null)
+          fieldCity: _asNonEmptyString(userData[fieldCity]),
+        if (_asNonEmptyString(userData[fieldCityKey]) != null)
+          fieldCityKey: _asNonEmptyString(userData[fieldCityKey]),
+        if (_asNonEmptyString(userData[fieldPincode]) != null)
+          fieldPincode: _asNonEmptyString(userData[fieldPincode]),
+        if (userData[fieldGeo] != null) fieldGeo: userData[fieldGeo],
+        if (userData['imageUrl'] is String) 'imageUrl': userData['imageUrl'],
+        fieldUpdatedAt: FieldValue.serverTimestamp(),
+      };
+
+      if (payload.isEmpty) return;
+      await dealersCollection.doc(normalizedDealerId).set(
+        payload,
+        SetOptions(merge: true),
+      );
+    } catch (e) {
+      debugPrint('⚠️ Failed to sync dealer profile contract: $e');
     }
   }
 }

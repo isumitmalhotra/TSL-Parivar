@@ -60,7 +60,10 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen>
       _notificationProvider = context.read<NotificationProvider>();
       _notificationProvider!.addListener(_syncNotificationsFromProvider);
       _syncNotificationsFromProvider();
-      _notificationProvider!.loadNotifications();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _notificationProvider?.loadNotifications();
+      });
     }
   }
 
@@ -385,7 +388,10 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen>
                               ),
                             ),
                             const SizedBox(height: AppSpacing.xxs),
-                            Row(
+                            Wrap(
+                              spacing: AppSpacing.sm,
+                              runSpacing: AppSpacing.xs,
+                              crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
                                 if (_unreadCount > 0) ...[
                                   Container(
@@ -406,7 +412,6 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen>
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(width: AppSpacing.sm),
                                 ],
                                 Text(
                                   AppLocalizations.of(context)
@@ -995,7 +1000,7 @@ class _NotificationDetailSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.xl),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1185,7 +1190,7 @@ class _NotificationSettingsSheetState
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.xl),
       child: Column(
         mainAxisSize: MainAxisSize.min,

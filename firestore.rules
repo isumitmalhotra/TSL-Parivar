@@ -68,11 +68,13 @@ service cloud.firestore {
     }
 
     function isOrderParticipant(data) {
-      return data.userId == uid() || data.dealerId == uid();
+      // Support both canonical (mistriId) and legacy (userId) order ownership.
+      return data.mistriId == uid() || data.userId == uid() || data.dealerId == uid();
     }
 
     function isDeliveryParticipant(data) {
-      return data.mistriId == uid() || data.dealerId == uid();
+      // Support both canonical (mistriId) and legacy (userId) delivery ownership.
+      return data.mistriId == uid() || data.userId == uid() || data.dealerId == uid();
     }
 
     function isArchitectOwner(data) {
@@ -178,6 +180,7 @@ service cloud.firestore {
     // Only dealers/admin can create/update rewards
     match /rewards/{rewardId} {
       allow read: if isAuthenticated() && (
+        rewardId == uid() ||
         resource.data.userId == uid() ||
         hasRole('dealer') ||
         isAdmin()
@@ -191,6 +194,20 @@ service cloud.firestore {
         isAdmin()
       );
       allow delete: if false;
+
+      // Reward history records are scoped to a parent reward owner.
+      match /history/{historyId} {
+        allow read: if isAuthenticated() && (
+          rewardId == uid() ||
+          hasRole('dealer') ||
+          isAdmin()
+        );
+        allow create, update: if isAuthenticated() && (
+          hasRole('dealer') ||
+          isAdmin()
+        );
+        allow delete: if false;
+      }
     }
 
     // ============== Products Collection ==============

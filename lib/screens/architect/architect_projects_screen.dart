@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../../design_system/design_system.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/architect_models.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/firestore_service.dart';
 import '../../services/url_launcher_service.dart';
 import '../../widgets/widgets.dart';
 
@@ -28,6 +31,10 @@ class _ArchitectProjectsScreenState extends State<ArchitectProjectsScreen>
   final TextEditingController _searchController = TextEditingController();
   final Debouncer _searchDebouncer = Debouncer();
   String _searchQuery = '';
+  bool _isLoading = false;
+  String? _errorMessage;
+  String? _loadedArchitectId;
+  bool _sortNewestFirst = true;
 
   final List<_TabData> _tabs = [
     const _TabData(label: 'All', status: null),
@@ -41,6 +48,46 @@ class _ArchitectProjectsScreenState extends State<ArchitectProjectsScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: _tabs.length, vsync: this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final architectId = context.read<AuthProvider>().userId;
+    if (architectId != null && architectId.isNotEmpty && _loadedArchitectId != architectId) {
+      _loadedArchitectId = architectId;
+      _loadProjects(architectId);
+    }
+  }
+
+  Future<void> _loadProjects(String architectId) async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final snapshot = await FirestoreService.projectsCollection
+          .where('architectId', isEqualTo: architectId)
+          .get();
+      final projects = snapshot.docs
+          .map((doc) => ArchitectProject.fromMap(doc.id, doc.data()))
+          .toList();
+
+      if (!mounted) return;
+      setState(() {
+        _projects
+          ..clear()
+          ..addAll(projects);
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Unable to load projects right now.';
+      });
+    }
   }
 
   @override
@@ -69,6 +116,10 @@ class _ArchitectProjectsScreenState extends State<ArchitectProjectsScreen>
             p.type.displayName.toLowerCase().contains(query);
       }).toList();
     }
+
+    projects.sort((a, b) => _sortNewestFirst
+        ? b.createdAt.compareTo(a.createdAt)
+        : a.createdAt.compareTo(b.createdAt));
 
     return projects;
   }
@@ -125,7 +176,7 @@ class _ArchitectProjectsScreenState extends State<ArchitectProjectsScreen>
       ),
       actions: [
         IconButton(
-          onPressed: () {},
+          onPressed: () => setState(() => _sortNewestFirst = !_sortNewestFirst),
           icon: const Icon(Icons.sort),
           color: AppColors.textPrimary,
         ),
@@ -214,6 +265,30 @@ class _ArchitectProjectsScreenState extends State<ArchitectProjectsScreen>
   }
 
   Widget _buildProjectsList() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: TslEmptyState(
+            icon: Icons.error_outline,
+            title: 'Unable to load projects',
+            message: _errorMessage!,
+            actionText: 'Retry',
+            onAction: () {
+              final architectId = context.read<AuthProvider>().userId;
+              if (architectId != null && architectId.isNotEmpty) {
+                _loadProjects(architectId);
+              }
+            },
+          ),
+        ),
+      );
+    }
+
     final projects = _filteredProjects;
 
     if (projects.isEmpty) {
@@ -239,7 +314,10 @@ class _ArchitectProjectsScreenState extends State<ArchitectProjectsScreen>
 
     return RefreshIndicator(
       onRefresh: () async {
-        await Future<void>.delayed(const Duration(seconds: 1));
+        final architectId = context.read<AuthProvider>().userId;
+        if (architectId != null && architectId.isNotEmpty) {
+          await _loadProjects(architectId);
+        }
       },
       child: ListView.builder(
         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -396,33 +474,14 @@ class _ProjectCard extends StatelessWidget {
                     color: AppColors.backgroundLight,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  child: Wrap(
+                    spacing: AppSpacing.md,
+                    runSpacing: AppSpacing.sm,
                     children: [
-                      _buildStatItem(
-                        icon: Icons.description,
-                        value: '${project.specifications.length}',
-                        label: 'Specs',
-                      ),
-                      _buildDivider(),
-                      _buildStatItem(
-                        icon: Icons.store,
-                        value: '${project.dealers.length}',
-                        label: 'Dealers',
-                      ),
-                      _buildDivider(),
-                      _buildStatItem(
-                        icon: Icons.inventory_2,
-                        value: '${project.totalQuantity.toStringAsFixed(0)}kg',
-                        label: 'Material',
-                      ),
-                      _buildDivider(),
-                      _buildStatItem(
-                        icon: Icons.star,
-                        value: '${project.pointsEarned}',
-                        label: 'Points',
-                        valueColor: AppColors.secondary,
-                      ),
+                      _buildStatItem(icon: Icons.description, value: '${project.specifications.length}', label: 'Specs'),
+                      _buildStatItem(icon: Icons.store, value: '${project.dealers.length}', label: 'Dealers'),
+                      _buildStatItem(icon: Icons.inventory_2, value: '${project.totalQuantity.toStringAsFixed(0)}kg', label: 'Material'),
+                      _buildStatItem(icon: Icons.star, value: '${project.pointsEarned}', label: 'Points', valueColor: AppColors.secondary),
                     ],
                   ),
                 ),
@@ -471,7 +530,13 @@ class _ProjectCard extends StatelessWidget {
     required String label,
     Color? valueColor,
   }) {
-    return Column(
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+      decoration: BoxDecoration(
+        color: AppColors.cardWhite,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
       children: [
         Row(
           mainAxisSize: MainAxisSize.min,
@@ -496,14 +561,7 @@ class _ProjectCard extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildDivider() {
-    return Container(
-      width: 1,
-      height: 30,
-      color: AppColors.divider,
+      ),
     );
   }
 }

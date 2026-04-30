@@ -216,43 +216,62 @@ class DeliveryProvider extends ChangeNotifier {
 
   Future<bool> startDelivery(String deliveryId) async {
     _isLoading = true;
+    _errorMessage = null;
     notifyListeners();
 
     try {
       final index = _deliveries.indexWhere((d) => d.id == deliveryId);
-      if (index != -1) {
-        final delivery = _deliveries[index];
-        _deliveries[index] = DeliveryModel(
-          id: delivery.id,
-          productName: delivery.productName,
-          productType: delivery.productType,
-          quantity: delivery.quantity,
-          unit: delivery.unit,
-          customerName: delivery.customerName,
-          customerPhone: delivery.customerPhone,
-          customerAddress: delivery.customerAddress,
-          latitude: delivery.latitude,
-          longitude: delivery.longitude,
-          distance: delivery.distance,
-          expectedDate: delivery.expectedDate,
-          deliveredDate: delivery.deliveredDate,
-          status: DeliveryStatus.inProgress,
-          urgency: delivery.urgency,
-          rewardPoints: delivery.rewardPoints,
-          notes: delivery.notes,
-        );
+      if (index == -1) {
+        _isLoading = false;
+        _errorMessage = 'Delivery not found';
+        notifyListeners();
+        return false;
+      }
 
-        if (_selectedDelivery?.id == deliveryId) {
-          _selectedDelivery = _deliveries[index];
-        }
+      await FirestoreService.updateDocument(
+        collection: FirestoreService.deliveriesCollection,
+        documentId: deliveryId,
+        data: {
+          'status': 'inProgress',
+          'startedAt': FieldValue.serverTimestamp(),
+        },
+      );
+
+      final delivery = _deliveries[index];
+      _deliveries[index] = DeliveryModel(
+        id: delivery.id,
+        productName: delivery.productName,
+        productType: delivery.productType,
+        quantity: delivery.quantity,
+        unit: delivery.unit,
+        customerName: delivery.customerName,
+        customerPhone: delivery.customerPhone,
+        customerAddress: delivery.customerAddress,
+        latitude: delivery.latitude,
+        longitude: delivery.longitude,
+        distance: delivery.distance,
+        expectedDate: delivery.expectedDate,
+        deliveredDate: delivery.deliveredDate,
+        status: DeliveryStatus.inProgress,
+        urgency: delivery.urgency,
+        rewardPoints: delivery.rewardPoints,
+        notes: delivery.notes,
+      );
+
+      if (_selectedDelivery?.id == deliveryId) {
+        _selectedDelivery = _deliveries[index];
       }
 
       _isLoading = false;
       notifyListeners();
       return true;
-    } catch (_) {
+    } catch (e) {
       _isLoading = false;
-      _errorMessage = 'Failed to start delivery';
+      if (e is FirebaseException && e.code == 'permission-denied') {
+        _errorMessage = 'Permission denied while starting delivery.';
+      } else {
+        _errorMessage = 'Failed to start delivery';
+      }
       notifyListeners();
       return false;
     }
@@ -268,43 +287,69 @@ class DeliveryProvider extends ChangeNotifier {
     String? notes,
   }) async {
     _isLoading = true;
+    _errorMessage = null;
     notifyListeners();
 
     try {
       final index = _deliveries.indexWhere((d) => d.id == deliveryId);
-      if (index != -1) {
-        final delivery = _deliveries[index];
-        _deliveries[index] = DeliveryModel(
-          id: delivery.id,
-          productName: delivery.productName,
-          productType: delivery.productType,
-          quantity: delivery.quantity,
-          unit: delivery.unit,
-          customerName: delivery.customerName,
-          customerPhone: delivery.customerPhone,
-          customerAddress: delivery.customerAddress,
-          latitude: delivery.latitude,
-          longitude: delivery.longitude,
-          distance: delivery.distance,
-          expectedDate: delivery.expectedDate,
-          deliveredDate: DateTime.now(),
-          status: DeliveryStatus.pendingApproval,
-          urgency: delivery.urgency,
-          rewardPoints: delivery.rewardPoints,
-          notes: notes ?? delivery.notes,
-        );
+      if (index == -1) {
+        _isLoading = false;
+        _errorMessage = 'Delivery not found';
+        notifyListeners();
+        return false;
+      }
 
-        if (_selectedDelivery?.id == deliveryId) {
-          _selectedDelivery = _deliveries[index];
-        }
+      await FirestoreService.updateDocument(
+        collection: FirestoreService.deliveriesCollection,
+        documentId: deliveryId,
+        data: {
+          'status': 'pendingApproval',
+          'deliveredQuantity': deliveredQuantity,
+          'photoUrls': photoUrls,
+          'submittedLat': latitude,
+          'submittedLng': longitude,
+          if (issueReported != null && issueReported.isNotEmpty)
+            'issueReported': issueReported,
+          if (notes != null && notes.isNotEmpty) 'mistriNotes': notes,
+          'podSubmittedAt': FieldValue.serverTimestamp(),
+        },
+      );
+
+      final delivery = _deliveries[index];
+      _deliveries[index] = DeliveryModel(
+        id: delivery.id,
+        productName: delivery.productName,
+        productType: delivery.productType,
+        quantity: delivery.quantity,
+        unit: delivery.unit,
+        customerName: delivery.customerName,
+        customerPhone: delivery.customerPhone,
+        customerAddress: delivery.customerAddress,
+        latitude: delivery.latitude,
+        longitude: delivery.longitude,
+        distance: delivery.distance,
+        expectedDate: delivery.expectedDate,
+        deliveredDate: DateTime.now(),
+        status: DeliveryStatus.pendingApproval,
+        urgency: delivery.urgency,
+        rewardPoints: delivery.rewardPoints,
+        notes: notes ?? delivery.notes,
+      );
+
+      if (_selectedDelivery?.id == deliveryId) {
+        _selectedDelivery = _deliveries[index];
       }
 
       _isLoading = false;
       notifyListeners();
       return true;
-    } catch (_) {
+    } catch (e) {
       _isLoading = false;
-      _errorMessage = 'Failed to submit POD';
+      if (e is FirebaseException && e.code == 'permission-denied') {
+        _errorMessage = 'Permission denied while submitting POD.';
+      } else {
+        _errorMessage = 'Failed to submit POD';
+      }
       notifyListeners();
       return false;
     }

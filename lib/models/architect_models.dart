@@ -4,6 +4,7 @@
 /// for development and testing purposes.
 
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Project type enum
 enum ProjectType {
@@ -66,6 +67,26 @@ extension ProjectTypeExtension on ProjectType {
         return const Color(0xFFE91E63);
     }
   }
+
+  static ProjectType fromKey(String? value) {
+    switch (value) {
+      case 'housing':
+        return ProjectType.housing;
+      case 'commercial':
+        return ProjectType.commercial;
+      case 'industrial':
+        return ProjectType.industrial;
+      case 'railways':
+        return ProjectType.railways;
+      case 'bridges':
+        return ProjectType.bridges;
+      case 'infrastructure':
+      default:
+        return ProjectType.infrastructure;
+    }
+  }
+
+  String get key => name;
 }
 
 /// Project status enum
@@ -102,6 +123,22 @@ extension ProjectStatusExtension on ProjectStatus {
         return const Color(0xFF2196F3);
     }
   }
+
+  static ProjectStatus fromKey(String? value) {
+    switch (value) {
+      case 'draft':
+        return ProjectStatus.draft;
+      case 'onHold':
+        return ProjectStatus.onHold;
+      case 'completed':
+        return ProjectStatus.completed;
+      case 'active':
+      default:
+        return ProjectStatus.active;
+    }
+  }
+
+  String get key => name;
 }
 
 /// Specification status
@@ -158,6 +195,20 @@ extension MaterialGradeExtension on MaterialGrade {
         return 'Fe 600';
     }
   }
+
+  static MaterialGrade fromKey(String? value) {
+    switch (value) {
+      case 'fe500':
+        return MaterialGrade.fe500;
+      case 'fe600':
+        return MaterialGrade.fe600;
+      case 'fe550sd':
+      default:
+        return MaterialGrade.fe550sd;
+    }
+  }
+
+  String get key => name;
 }
 
 /// Associated dealer model
@@ -177,6 +228,28 @@ class AssociatedDealer {
     required this.location,
     required this.rating,
   });
+
+  factory AssociatedDealer.fromMap(String id, Map<String, dynamic> data) {
+    return AssociatedDealer(
+      id: id,
+      name: (data['name'] as String?) ?? 'Dealer',
+      shopName: (data['shopName'] as String?) ?? 'TSL Dealer',
+      phone: (data['phone'] as String?) ?? '',
+      location: (data['location'] as String?) ?? (data['address'] as String?) ?? '',
+      rating: ((data['rating'] as num?) ?? 0).toDouble(),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'shopName': shopName,
+      'phone': phone,
+      'location': location,
+      'rating': rating,
+    };
+  }
 }
 
 /// Material specification model
@@ -194,6 +267,26 @@ class MaterialSpec {
     required this.unit,
     required this.grade,
   });
+
+  factory MaterialSpec.fromMap(String id, Map<String, dynamic> data) {
+    return MaterialSpec(
+      id: id,
+      materialType: (data['materialType'] as String?) ?? 'Material',
+      quantity: ((data['quantity'] as num?) ?? 0).toDouble(),
+      unit: (data['unit'] as String?) ?? 'kg',
+      grade: MaterialGradeExtension.fromKey(data['grade'] as String?),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'materialType': materialType,
+      'quantity': quantity,
+      'unit': unit,
+      'grade': grade.key,
+    };
+  }
 }
 
 /// Project model
@@ -225,6 +318,46 @@ class ArchitectProject {
   });
 
   double get totalQuantity => specifications.fold(0, (sum, s) => sum + s.quantity);
+
+  factory ArchitectProject.fromMap(String id, Map<String, dynamic> data) {
+    final dealers = ((data['dealers'] as List?) ?? const <dynamic>[])
+        .whereType<Map>()
+        .map((raw) => Map<String, dynamic>.from(raw as Map))
+        .map((dealerData) {
+          final dealerId = (dealerData['id'] as String?) ?? '';
+          return AssociatedDealer.fromMap(dealerId, dealerData);
+        })
+        .toList();
+
+    final specs = ((data['specifications'] as List?) ?? const <dynamic>[])
+        .whereType<Map>()
+        .map((raw) => Map<String, dynamic>.from(raw as Map))
+        .toList();
+
+    final mappedSpecs = specs
+        .asMap()
+        .entries
+        .map((entry) {
+          final specData = entry.value;
+          final specId = (specData['id'] as String?) ?? '${id}_spec_${entry.key}';
+          return MaterialSpec.fromMap(specId, specData);
+        })
+        .toList();
+
+    return ArchitectProject(
+      id: id,
+      name: (data['name'] as String?) ?? 'Project',
+      type: ProjectTypeExtension.fromKey(data['type'] as String?),
+      status: ProjectStatusExtension.fromKey(data['status'] as String?),
+      location: (data['location'] as String?) ?? '',
+      dealers: dealers,
+      specifications: mappedSpecs,
+      createdAt: _parseDateTime(data['createdAt']) ?? DateTime.now(),
+      expectedDelivery: _parseDateTime(data['expectedDelivery']),
+      pointsEarned: (data['pointsEarned'] as int?) ?? 0,
+      notes: data['notes'] as String?,
+    );
+  }
 }
 
 /// Recent specification for home screen
@@ -292,6 +425,19 @@ class ArchitectRewardTransaction {
     required this.date,
     required this.type,
   });
+
+  factory ArchitectRewardTransaction.fromMap(String id, Map<String, dynamic> data) {
+    final rawPoints = data['points'];
+    final rawCreatedAt = data['createdAt'] ?? data['date'];
+    return ArchitectRewardTransaction(
+      id: id,
+      title: (data['title'] as String?) ?? 'Reward',
+      description: (data['description'] as String?) ?? '',
+      points: rawPoints is num ? rawPoints.toInt() : 0,
+      date: _parseDateTime(rawCreatedAt) ?? DateTime.now(),
+      type: ArchitectRewardTypeExtension.fromKey(data['type'] as String?),
+    );
+  }
 }
 
 enum ArchitectRewardType {
@@ -340,6 +486,29 @@ extension ArchitectRewardTypeExtension on ArchitectRewardType {
         return Icons.redeem;
     }
   }
+
+  static ArchitectRewardType fromKey(String? value) {
+    switch (value) {
+      case 'projectComplete':
+        return ArchitectRewardType.projectComplete;
+      case 'referral':
+        return ArchitectRewardType.referral;
+      case 'redeemed':
+        return ArchitectRewardType.redeemed;
+      case 'specification':
+      default:
+        return ArchitectRewardType.specification;
+    }
+  }
+
+  String get key => name;
+}
+
+DateTime? _parseDateTime(dynamic value) {
+  if (value is Timestamp) return value.toDate();
+  if (value is DateTime) return value;
+  if (value is String) return DateTime.tryParse(value);
+  return null;
 }
 
 /// ============================================

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../design_system/design_system.dart';
@@ -59,6 +60,15 @@ class _MistriDeliveryDetailsScreenState
 
   @override
   Widget build(BuildContext context) {
+    final allDeliveries = context.watch<DeliveryProvider>().allDeliveries;
+    final index = allDeliveries.indexWhere((d) => d.id == widget.deliveryId);
+    if (index >= 0) {
+      _delivery = allDeliveries[index];
+      _hasDelivery = true;
+    } else {
+      _hasDelivery = false;
+    }
+
     if (!_hasDelivery) {
       return Scaffold(
         backgroundColor: AppColors.backgroundLight,
@@ -892,13 +902,48 @@ class _MistriDeliveryDetailsScreenState
               child: TslPrimaryButton(
                 label: _getPrimaryButtonLabel(),
                 leadingIcon: _getPrimaryButtonIcon(),
-                onPressed: () {},
+                onPressed: () => _handlePrimaryAction(),
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _handlePrimaryAction() async {
+    final provider = context.read<DeliveryProvider>();
+    switch (_delivery.status) {
+      case DeliveryStatus.assigned:
+        final ok = await provider.startDelivery(_delivery.id);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(ok
+                ? 'Delivery started. Proceed to POD when reached.'
+                : provider.errorMessage ?? 'Unable to start delivery.'),
+            backgroundColor: ok ? AppColors.success : AppColors.error,
+          ),
+        );
+        return;
+      case DeliveryStatus.inProgress:
+      case DeliveryStatus.rejected:
+        if (!mounted) return;
+        context.push('/mistri/deliveries/${_delivery.id}/pod');
+        return;
+      case DeliveryStatus.pendingApproval:
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('POD already submitted and pending review.')),
+        );
+        return;
+      case DeliveryStatus.completed:
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Delivery already completed.')),
+        );
+        return;
+    }
   }
 
   String _getPrimaryButtonLabel() {
